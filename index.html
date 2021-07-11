@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>NYT Day Search</title>
+    <link rel="stylesheet" href="spectre.min.css">
+    <link rel="stylesheet" href="AppStyles.css">
+    <!--
+    <style>
+      .author {font-size: .6rem;}
+      p {margin-bottom: 0px}
+    </style>
+    -->
+  </head>
+  <body>
+    <div style="padding-top: 1rem; padding-left: 2rem;">
+      <form>
+        <div class="container pb-2 pl-0">
+          <div class="columns col-oneline">
+            <div class="column col-6">
+              <div class="form-group">  
+                  <input class="form-input" type="date" id="dateSpec" name="dateSpec" step="any">
+                  <p class="form-input-hint mb-0">Only Sundays and Wednesdays are valid</p>
+              </div>
+                  
+            </div>            
+            <div class="column col-1">
+              <div class="form-group"> 
+                <button class="btn" type="submit" id="startButton">Start</button>
+              </div>
+            </div>          
+            <div class="column col-4">
+              <div class="form-group  float-right">
+                <label class="form-switch">
+                  <input type="checkbox" id="writeSwitch">
+                  <i class="form-icon"></i> Write to testcase
+                </label>
+              </div>
+            </div>
+        </div>
+      </form>
+      <!-- <div id="msgs" class="bg-secondary" style="overflow: hidden"></div> -->
+      <div id="msgs" style="overflow: hidden"></div>
+      <form name="articleList" id="aList" class="pt-2">
+        <div class="form-group" id="aL">
+        </div>
+      </form>
+      <p id="alP"></p>
+    </div>
+    <div>
+      <p>&nbsp; </p>
+    </div>
+    <script src="./renderer.js"></script>
+  </body>
+</html>

@@ -1,0 +1,7 @@
+.author {font-size: .6rem;}
+p.msg {margin-bottom: 0px}
+p.Pbar {font-size: 14px;}
+progress.Pbar {padding-top: 11px; margin-top: 12px;}
+.artdiv[data-content]::after {padding-left: 0px;}
+.srchArt {margin-top: 2px;}
+.clearDiv {clear: left;}

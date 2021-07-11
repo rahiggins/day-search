@@ -1,0 +1,17 @@
+{
+  "name": "day-search",
+  "version": "1.1.0",
+  "description": "Search a day's Food or Magazine section articles for recipes, puppeteer in main process version.",
+  "main": "index.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "Me",
+  "license": "ISC",
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.5",
+    "electron": "^12.0.2",
+    "pos": "^0.4.2",
+    "puppeteer": "^8.0.0"
+  }
+}

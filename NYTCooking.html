@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<!-- Author version -->
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Author/Recipe Search</title>
+    <link rel="stylesheet" href="fonts.css">
+    <link rel="stylesheet" href="NYTcore.min.css">
+    <link rel="stylesheet" href="spectre.min.css">
+    <link rel="stylesheet" href="spectre-icons.min.css">
+    <link rel="stylesheet" href="NYTstyles.css">
+    <style>      
+    .vertical-centerish {
+      margin: 0;
+      position: absolute;
+      top: 40%;
+      -ms-transform: translateY(-54%);
+      transform: translateY(-40%);
+    }
+      </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="columns m-2">
+        <div class="column col-12">
+          <div class="columns">
+            <div class="column col-12">
+              <p class="text-primary mt-2"id="author"></p>
+            </div>
+            <div class="column col-1">
+              <button class="btn btn-sm" id="stopButton" disabled>Stop</button>
+            </div>
+            <div class="column col-1">
+              <button class="btn btn-sm" id="clearButton" disabled>Clear</button>
+            </div>
+            <div class="column col-1">
+              <button class="btn btn-sm" id="closeButton">Close</button>
+            </div>
+          </div>
+          <div id=msgs class="float-left">
+          </div>
+          <div style="clear: left"></div> 
+          <div class="divider"></div>
+          <div>
+            <h6>Exact matches</h6>
+            <section class="recipe-card-list track-card-params" data-layout="grid" id='exact'>
+            </section>
+          </div>
+          <div>
+            <h6>Fuzzy matches</h6>
+            <section class="recipe-card-list track-card-params" data-layout="grid" id='fuzzy'>
+            </section>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <script>
+      // You can also require other files to run in this process
+      require('./NYTCooking-renderer.js')
+    </script>
+  </body>
+</html>
