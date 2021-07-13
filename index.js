@@ -397,7 +397,7 @@ async function processDate (dateToSearch, writeToTestcase) {
 
   // First, create an array of Cheerio objects corresponding to the articles returned by the search.
   //  - Load search results page HTML into Cheerio.  Search results are displayed in
-  //    an ordered list. List items corresponding to articles have attribute data-testid=search-bodega-result.
+  //    an ordered list. Create an array listItems of articles have attribute data-testid=search-bodega-result.
   let $ = cheerio.load(await dayPage.content()); 
   let ol = $('ol');
   let listItems = $('li', ol).filter(function (i, el) {
