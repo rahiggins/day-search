@@ -400,7 +400,9 @@ async function processDate (dateToSearch, writeToTestcase) {
   //    an ordered list. List items corresponding to articles have attribute data-testid=search-bodega-result.
   let $ = cheerio.load(await dayPage.content()); 
   let ol = $('ol');
-  let listItems = $('li', ol).attr('data-testid', 'search-bodega-result');
+  let listItems = $('li', ol).filter(function (i, el) {
+    return $(this).attr('data-testid') === 'search-bodega-result'
+  })
   Log("Final search results: " + listItems.length.toString());
 
   // Next, iterate over the article list items and extract:
