@@ -1,0 +1,23 @@
+
+The titleMatch processing in index.js needs review.  The wild population of titles
+ should be inventoried.
+
+The Start buttton should be disabled while a recioe search is underway.
+
+Testcase:   1) Because of addition of keyword searches, should check if an
+                article has already been recorded.
+            2) Integrate testcase here:
+                a) add file-choser input from day-search-article-parse-test
+                    to index.html
+                b) delete input not chosen
+                c) move recipeParse and para (and more?) to a separate file
+                d) If the file-choser input was chosen, check if a test version
+                    of that separate file exists and if so use that.
+
+Recipe names ending with a ':' should be ignored? 11/4/2001
+
+Miss Rafferty Wore Taffeta 11/4/2001, missed Herb-Crusted Rack of Lamb recipe
+
+The China Monologue 11/4/2001, missed Roasted Peaches recipe
+
+ 
