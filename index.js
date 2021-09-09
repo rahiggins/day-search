@@ -1,23 +1,39 @@
 // This application searches nytimes.com for articles published on a particular 
 // Sunday or Wednesday.  For Sundays, the search is for articles in the Magazine 
-// section.  For Wednesdays, the search is for articles in the Food section.
+// section.  For Wednesdays, the search is for articles in the Food section. After the
+// the day-specific section search, the full day is searched for the keywords:
+// [tablespoon, shaken, recipe, yield:]
 
-// Each article found by the day/section search is examined for the presence of recipes.
+// Each result found by these searches is examined for the presence of recipes.
 
-// Articles containing recipes are displayed, along with the recipes found.  
+// These search results are displayed:
+//  - Articles that contain recipes, along with the names of the recipes
+//  - Search results that consist of a single recipe, along with the name of the recipe
+//  - Search results that consist of an NYT Cooking page
 
-// Modules to control application life and create native browser window
+// For each recipe displayed, a Search button is provided to search NYT Cooking
+//  for recipes by the article's author that match the recipe name.  Matches 
+//  are displayed in a separate window.
+
+// This apppication requires an instance of Chrome enabled for remote debugging.
+//  First start Chrome by executing Remote_debug_Chrome.sh in the Terminal app
+//  and use that instance of Chrome to log in to nytimes.com.  Then start this
+//  application.
+
+// Modules used here
 const {app, BrowserWindow} = require('electron')
 const { ipcMain } = require('electron')
 const fs = require('fs'); // Filesystem functions
 const { exec } = require('child_process');
+const needle = require('needle'); // HTTP client
 const puppeteer = require('puppeteer'); // Chrome API
 const cheerio = require('cheerio'); // core jQuery
 const pos = require('pos');  // Part Of Speech classification 
 
+// Get path to application data and set set paths to local data
 const appPath = app.getPath('appData') + "/" + app.name + '/';
-const lastDateFile = appPath + 'LastDate.txt';
-const testcase = appPath + 'testcase/';
+const lastDateFile = appPath + 'LastDate.txt';  // Last date processed
+const testcase = appPath + 'testcase/'; // Folder containing testcase data
 
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
@@ -44,6 +60,8 @@ function Log (text) {
 async function launchPup (opt) {
   // Launch Puppeteer and create a page
   // Called from Mainline
+  //
+  // This function is currently unused.  See function connectPup.
 
   console.log("launchPup: entered");
   browser = await puppeteer.launch(opt);
@@ -54,23 +72,39 @@ async function launchPup (opt) {
 }
 
 async function connectPup () {
-  // Connect Puppeteer to an existing instance of Chrome and create a page
+  // Connect Puppeteer to an existing instance of Chrome that is logged in   
+  //  to nytimes.com and create a new page
   // Called from Mainline
 
   console.log("connectPup: entered");
-  let wsChromeEndpointurl = "ws://[::1]:9222/devtools/browser/343488b3-5743-4627-9bff-51a38dbe976c"
-  browser = await puppeteer.connect({
-      browserWSEndpoint: wsChromeEndpointurl,
-  });
-  dayPage = await browser.newPage();
-  dayPage.setDefaultNavigationTimeout(0);
-  await dayPage.waitForTimeout(250);
 
-  console.log("connectPup: exiting");
+  // Try to obtain the remote-debugging Chrome endpoint.  If successful, connect
+  //  puppeteer to the remote-debugging instance of Chrome, create a new page
+  //  and return 0. If unsuccessful, return -1, terminating the application.
+  let url = "http://127.0.0.1:9222/json/version"
+  try {
+      let resp = await needle("get", url);
+      Log(resp.body.webSocketDebuggerUrl)
+      browser = await puppeteer.connect({
+          browserWSEndpoint: resp.body.webSocketDebuggerUrl,
+      });
+      dayPage = await browser.newPage();
+      dayPage.setDefaultNavigationTimeout(0);
+      await dayPage.waitForTimeout(250);
+    
+      console.log("connectPup: exiting");
+      return 0
+    } catch (e) {
+      console.error("Unable to obtain webSocketDebuggerUrl: " + e.code)
+      return -1
+    }
 }
 
 async function login () {
   // Log in to nytimes.com
+  // This function is currently unused.  Programmatically logging into nytimes.com seems to
+  //  to trigger Captcha displays.  Instead, the app connects to an existing instance of Chrome
+  //  that is already manually logged into nytimes.com.
 
   return new Promise(function (resolve) {
       dayPage.once('framenavigated', async frame => {
@@ -104,12 +138,15 @@ async function login () {
 
 
 async function processDate (dateToSearch, writeToTestcase) {
-  // Search a date (Sunday: Magazine section or Wednesday: Food Section) for articles containing recipes
+  // Search a date (Sunday: Magazine section or Wednesday: Food Section)
+  //  for articles containing recipes
 
-  function recipeParse(arr, demarcation, title, isRecipe, isPairing, numRecipes, isBeverage, beverageType) {
+  function recipeParse($, paras, arr, demarcation, title, isRecipe, isPairing, numRecipes, isBeverage, beverageType) {
     // Parse article page text for recipe names
     // Input:
-    //  - Array of recipe demarcations
+    //  - Cheerio function bound to the article HTML
+    //  - Array of the <p> elements in the article (Cheerio objects)
+    //  - Array of indices of the paras array that are recipe demarcations
     //  - Name of demarcation in the passed array, "instr" or "yield"
     //  - Article title
     //  - isRecipe (boolean)
@@ -119,9 +156,9 @@ async function processDate (dateToSearch, writeToTestcase) {
     //  - Beverage type (wine, beer, etc)
     // Output: Recipe names 
     //
-    // Each element of the array of recipe demarcations corresponds to a recipe.
+    // Each element of the 'demarcations' array corresponds to a recipe.
     // When the demarcation name is "instr", the array elements are the first
-    //  recipe instruction paragraph.
+    //  recipe instruction paragraph (i.e. '1. text').
     // When the demarcation name is "yield", the array elements are the last
     //  paragraph of a recipe, which starts with "Yield:"
     // 
@@ -131,18 +168,19 @@ async function processDate (dateToSearch, writeToTestcase) {
     //  The recipe name is:
     //   - A paragraph containing all upper case letters
     //   - The concatenation of paragraphs between:
-    //    -- a paragraph that starts with
-    //      a numeral and a paragraph that starts with "Yield" or that contains
-    //      more than 9 words 
-    Log("recipeParse entered with:" + demarcation)
+    //    -- a paragraph that starts with a numeral and
+    //    -- a paragraph that starts with "Yield" or that ends with terminal
+    //        punctuation - a period, question mark or exclamation point
+
+    Log("recipeParse entered")
     Log(" arr: " + arr);
     Log(" demarcation: " + demarcation);
     Log(" Title: " + title);
-    Log("isRecipe: " + isRecipe);
-    Log("isPairing: " + isPairing);
+    Log(" isRecipe: " + isRecipe);
+    Log(" isPairing: " + isPairing);
     Log(" numRecipes: " + numRecipes);
-    Log("isBeverage: " + isBeverage);
-    Log("beverageType: " + beverageType)
+    Log(" isBeverage: " + isBeverage);
+    Log(" beverageType: " + beverageType)
     
     let recipeNameArray = [];
     let recipeNameIsArticleTitle = false;
@@ -160,10 +198,15 @@ async function processDate (dateToSearch, writeToTestcase) {
         let last = arr[j];
         let tempNaN = ""; // Concatenation of paragraphs
         recipeName = "Recipe Name not found";
+
+        // (01/31/2001: Ahi Katsu with Wasabi Ginger Sauce - 
+        //   recipe name as title, not marked Recipe. Distinguish from FOOTNOTES
+        //   by ingredientFound: p.isNum && !p.isInstr)
+        let ingredientFound = false;
+
         let numFound = false; // Don't concat paras until a numeral-started paragraph is found
   
         // Walk back through paragraphs from "Yield:" or "1. "
-        //let i;
         for (let i = last-1; i>Math.max(last-50, -1); i--) {
             let lp = $(paras[i])
             let t = $(lp).text()
@@ -189,9 +232,13 @@ async function processDate (dateToSearch, writeToTestcase) {
             // Skip paragraphs that start with a numeral (instruction step or ingredient)
             //  and reset concatention of paragraphs
             if (eval(exp)) {
-                Log("isNum - tempNaN reset");
                 numFound = true;
                 tempNaN = "";
+                if (!p.isInstr) {
+                  // If not an instruction, then note that it's an ingredient
+                  ingredientFound = true;
+                }
+                Log("isNum - tempNaN reset - ingredient: " + ingredientFound);
                 continue
             }
   
@@ -208,31 +255,34 @@ async function processDate (dateToSearch, writeToTestcase) {
                 continue
             }
   
-            // If long paragraph and concatenated paragraphs exist, or "Yield:"
+            // If a paragraph containing punctuation and concatenated paragraphs exist, or "Yield:"
             //  set recipe name and exit loop,
             // else concatenate paragraph if a paragraph beginning with a numeral
             //   has been encountered previously
-            //if (((p.words > 9 || p.punct > 0)  && tempNaN != "") || p.yield) {
-              if (((p.punct > 0)  && tempNaN != "") || p.yield) {
-                Log("Text para and tempNaN or Yield- recipeName set");
-                if (p.yield && tempNaN == '') {
-                  // If 'Yield:' encountered and tempNaN is empty, look to the subsequent paragraph
-                  let subsequentParaText = $(paras[i+1]).text()
-                  Log("yield & empty tempNAN, previous paragraph: " + subsequentParaText)
-                  recipeName = subsequentParaText
-                } else {
-                  recipeName = tempNaN;
-                }
-                tempNaN = "";
-                break
-            } else if (p.punct > 1) {
-                Log("para contains " + p.punct.toString() + " ',' & '.', skipped");
+            //if (((p.words > 9 || p.punct)  && tempNaN != "") || p.yield) {
+            if (((p.punct)  && tempNaN != "") || p.yield) {
+              Log("Text para and tempNaN or Yield- recipeName set");
+              if (p.yield && tempNaN == '') {
+                // If 'Yield:' encountered and tempNaN is empty, look to the subsequent paragraph
+                let subsequentParaText = $(paras[i+1]).text()
+                Log("yield & empty tempNAN, previous paragraph: " + subsequentParaText)
+                recipeName = subsequentParaText
+              } else {
+                recipeName = tempNaN;
+              }
+              tempNaN = "";
+              break
+            } else if (p.punct) {
+                Log("para contains terminal punctuation, skipped");
                 continue
             } else if (numFound) {
               Log("numFound so para concatenated");
               tempNaN = t + " " + tempNaN;
           }
         }
+
+        Log("Finished walking back through paragraphs")
+        Log("Ingredients? " + ingredientFound);
         //Log("Title paragraph number: " + i.toString())
         Log("isRecipe: " + isRecipe)
         Log("tempNaN: " + tempNaN)
@@ -246,7 +296,7 @@ async function processDate (dateToSearch, writeToTestcase) {
         // 12/08/2002 (adapted...) as part of the recipe title; 1/7/2001 (wildly adapted...)
         let trimmedRecipeName = recipeName.split(/\(.*adapted/i)[0].trim();
         Log("trimmedRecipeName: " + trimmedRecipeName);
-        if ((trimmedRecipeName == "Recipe Name not found" && isRecipe) || trimmedRecipeName.toLowerCase() == "recipe") {
+        if ((trimmedRecipeName == "Recipe Name not found" && (isRecipe || (numRecipes == 1 && ingredientFound))) || trimmedRecipeName.toLowerCase() == "recipe") {
           Log("Recipe name set to title")
           recipeNameIsArticleTitle = true;
           trimmedRecipeName = title;
@@ -284,7 +334,8 @@ async function processDate (dateToSearch, writeToTestcase) {
     //  allCAPS: true if all letters are capital letters
     //  ad: true if first word is "Advertisement" 
     //  adapted: true if first word includes (case-insensitive) "Adapted"
-    //  punct: number of periods and question marks
+    //  punct: true if the paragraph ends with a period, question mark,
+    //          exclamation point, apostrophe, quote or right parenthesis.
 
   
     let trimmedText = text.trim()
@@ -298,10 +349,351 @@ async function processDate (dateToSearch, writeToTestcase) {
         allCAPS: trimmedText === trimmedText.toUpperCase(),
         ad: words[0] === "Advertisement",
         adapted: words[0].search(/Adapted/i) > -1,
-        punct: trimmedText.concat('.').match(/[\.\?!]/g).length - 1
+        punct: trimmedText.match(/[\.\?!\"\')]$/) != null
   
     }
     
+  }
+
+  async function processSectionOrKeywords(url, searchDomain) {
+
+      // Go to search page listing articles in the selected day's section of interest:
+      //  Magazine (Sunday) or Food (Wednesday).  First, make the dayPage tab active (bringToFront).
+    await dayPage.bringToFront(); 
+    await dayPage.goto(url, {waitUntil: "networkidle0"});
+
+    // If there's a 'Log In' link, log in
+    try {
+      let logInButton = await dayPage.waitForSelector('[data-testid="login-link"]', {timeout: 250});
+      Log("Log In found")
+
+      // Click the Log In link
+      await logInButton.click();
+
+      // Go enter credentials
+      //await login();
+
+      // Wait for navigation back to search results
+      await dayPage.waitForNavigation({waitUntil: 'networkidle0'})
+
+
+    } catch {
+        Log("Log In not found");
+    }
+
+    // Get number of search results initially displayed
+    let currentSearchResultsNum = await searchResultsNum()
+    Log("Initial search results: " + currentSearchResultsNum.toString())
+
+    async function searchResultsNum() {
+        // Return the number of search results in the page 
+        let $ = cheerio.load(await dayPage.content());
+        let ol = $('ol');
+        let listItems = $('li.css-1l4w6pd', ol)
+        return listItems.length;
+    }
+
+    mainWindow.webContents.send('display-spinner')
+
+    // Look for 'Show More' button and if found, click it 
+    do {
+        Log("Looking for Show More...")
+
+        // Wait 250ms for Show More button to appear, exit loop if it doesn't appear 
+        try {
+            await dayPage.waitForSelector('[data-testid="search-show-more-button"]', {timeout: 250});
+            Log("Show more found")
+        } catch {
+            Log("Show more not found, exiting loop")
+            break;
+        }
+
+        // If button appears, click it...
+        let button = await dayPage.$('[data-testid="search-show-more-button"]');
+        Log("Pre-click Search Results: " + currentSearchResultsNum.toString())
+        Log("Clicking Show More button");
+        await dayPage.waitForTimeout(3000)
+        await button.click()
+
+        // ... then wait 250ms at a time until the number of search results changes
+        do {
+            Log("Waiting...")
+            await dayPage.waitForTimeout(250);
+            newNum = await searchResultsNum();
+        } while (currentSearchResultsNum == newNum)
+
+        // Update number of search results and repeat
+        currentSearchResultsNum = newNum
+        Log("New search results: " + currentSearchResultsNum.toString())
+
+    } while (true)
+
+    // When all search results are shown, create a array of 
+    //  search result (i.e. article) objects:
+    //  {title:, author:, link:, isBeverage:, isPairing:, isRecipe:}
+
+    // First, create an array of Cheerio objects corresponding to the articles returned by the search.
+    //  - Load search results page HTML into Cheerio.  Search results are displayed in
+    //    an ordered list. Create an array listItems of articles have attribute data-testid=search-bodega-result.
+    let $ = cheerio.load(await dayPage.content()); 
+    let ol = $('ol');
+    let listItems = $('li', ol).filter(function (i, el) {
+      return $(this).attr('data-testid') === 'search-bodega-result'
+    })
+    Log("Final search results: " + listItems.length.toString());
+
+    // Next, iterate over the article list items and extract:
+    //  - the article title
+    //  - the article's author
+    //  - the article's href
+    // 
+    //  Examine the article title to determine if the article is:
+    //   - a beverage tasting article,
+    //   - a beverage pairing article,
+    //   - a stand-alone recipe,
+    //   or an ordinary article
+
+    // Define the array of article objects
+    let articles = [];
+
+    // For each search result article
+    $(listItems).each( async function(i, elem) {
+        Log($('h4',this).text()); // Log title
+
+        // Initialize article type attributes
+        let isPairing = false;
+        let isRecipe = false;
+        let Beverage = [false, null];
+
+        // Get href, discard query string (?...), prefix relative hrefs
+        let href = $('a',this).attr('href');
+        href = href.substring(0,href.indexOf('?'));
+        if (href.startsWith("/")) {
+          href = `https://www.nytimes.com${href}`;
+        }
+
+        // Get title
+        let title = $('h4',this).text().trim();
+
+        // Adjust the title, if necessary
+
+        // See if title contains a ';' or a ':'
+        titleMatch = title.match(/[;:]/);
+        Log("titleMatch: " + titleMatch);
+
+        if (titleMatch !== null) {
+          // If so, split the title at the first ';' or ':'        
+          titleSplit = title.split(titleMatch[0]);
+          Log("titleSplit: " + titleSplit);
+
+          // If the title was split at a ';', set the article's title to the portion following the ';' 
+          if (titleMatch[0] == ';') {
+            title = titleSplit.slice(-1)[0];
+
+          // Else if the title was split at a ':' and the portion preceeding the ':' was 'recipe(s)' or 'pairing(s),
+          //  set the article's title to the portion following the ':' 
+          } else if (titleMatch[0] == ':' && titleSplit[0].toLowerCase().match(/recipe+s*|pairing+s*/) !== null) {
+            title = titleSplit.slice(-1)[0];
+          }
+
+          Log("Adjusted title: " + title);
+
+          // Set article type according to the portion preceeding the split
+          let portionPreceeding = titleSplit[0].toLowerCase();
+
+          // See if the article is beverage-related; Beverage = [boolean, display label]
+          Beverage = checkForBeverage(portionPreceeding);
+          Log("Beverage array: " + Beverage)
+
+          function checkForBeverage (portionPreceeding) {
+            // Check the article title to see if the article is beverage-related
+            //
+            // Input: the first part of the article title (preceeding a ';' or ':')
+            //
+            // If portionPreceeding contains 'tasting[s] or starts with 
+            //  'wines', 'beers', 'spirits' or 'ales' etc and is followed by ' of the times',
+            //  then the article is beverage-related and article display will be labeled
+            //  'Tasting", 'Wine', 'Beer', 'Spirits', 'Ale', etc
+            //
+            // Output: Array [boolean isBeverage, string beverageType]
+
+            // Map title text to beverageType
+            let beverageTypeMap = {
+              wines: "Wine",
+              beers: "Beer",
+              spirits: "Spirits",
+              ales: "Ale"
+            }
+
+            // Initialize isBeverage and beverageType: not beverage-related, null
+            let isBeverage = false;
+            let beverageType = null;
+
+            // Split the portionPreceeding by ' of the times'
+            //  The result is [portionPreceeding] if ' of the times' is not found, or
+            //  [x, ""] if portionPreceeding is 'x of the times'
+            let ofTheTimesSplit = portionPreceeding.split(" of the times");
+
+            // See if the first element of the preceeding split result is 'wines', 'beers', 'spirits' or 'ales' etc
+            //  The result is null if not, or [x] where x is 'wines', 'beers', 'spirits' or 'ales' etc
+            let ofTheTimesFirstPart = ofTheTimesSplit[0].match(/^wines$|^beers$|^spirits$|^ales$/)
+
+            // If the portionPreceeding contains 'tasting[s]', the article is beverage-related
+            if (portionPreceeding.match(/tasting+s*/) !== null) {
+              isBeverage = true;
+              beverageType = "Tasting"
+
+            // If the ' of the times' split yielded 2 elements and 
+            //  the first element is 'wines', 'beers', 'spirits' or 'ales' etc,
+            //  then the article is beverage-related and 
+            //  the first element is mapped to an article display label 
+            } else if (ofTheTimesSplit.length == 2 && ofTheTimesFirstPart !== null) {
+              isBeverage = true;
+              beverageType = beverageTypeMap[ofTheTimesFirstPart[0]]
+            }
+
+            return [isBeverage, beverageType]
+          }
+
+          if (portionPreceeding.match(/pairing+s*/) !== null) {
+            isPairing = true;
+          }
+          if (portionPreceeding.match(/recipe+s*/) !== null) {
+            isRecipe = true;
+          }
+
+        }
+
+        // Add an article object to the articles array
+        articles.push(
+            {
+                title: title,
+                author: $('p.css-15w69y9',this).text().substr(3),
+                link: href,
+                isBeverage: Beverage[0],
+                isPairing: isPairing,
+                isRecipe: isRecipe,
+                beverageType: Beverage[1]
+            }
+        )
+    })
+
+    let articlesNum = articles.length.toString();
+    Log("Array articles length: " + articlesNum);
+
+    // For each article, search the article text for recipes.
+    for (a = 0; a<articles.length; a++) {
+      mainWindow.webContents.send('progress-bar', [(a+1).toString(), articlesNum, searchDomain]);
+      if (displayedURLs.includes(articles[a].link)) {
+        Log("Early already displayed: " + articles[a].title)
+        continue;
+      }
+      Log("Go to article " + articles[a].link)
+      Log("Title: " + articles[a].title)
+      Log("Author: " + articles[a].author)
+      Log("isBeverage: " + articles[a].isBeverage)
+      Log("isRecipe: " + articles[a].isRecipe)
+      Log("beverageType: " + articles[a].beverageType)
+
+      if (articles[a].link.includes("cooking.nytimes.com")) {
+        if (displayedURLs.includes(articles[a].link)) {
+          Log("Article already displayed: " + articles[a].title)
+        } else {
+          Log("Display article: " + articles[a].title);
+          displayedURLs.push(articles[a].link)
+          mainWindow.webContents.send('article-display', [JSON.stringify(articles[a]), [articles[a].title], "NYT Cooking"])
+        }
+      } else {
+        // Create a new page and go to the article
+        articlePage = await browser.newPage(); 
+        articlePage.setDefaultNavigationTimeout(0);
+        await articlePage.waitForTimeout(250);
+        await articlePage.goto(articles[a].link, {waitUntil: "networkidle0"})
+        // Load article HTML into Cheerio and create an array (paras) of <p> elements
+        let articleHTML = await articlePage.content();
+
+        if (writeToTestcase) {
+          let safeTitle = articles[a].title.replace(/\//g, "\\")
+          if ( !fs.existsSync(testcase + safeTitle + ".html") ) {
+            fs.writeFileSync(testcase + safeTitle + ".html", articleHTML);
+            fs.writeFileSync(testcase + safeTitle + ".JSON", JSON.stringify(articles[a]))
+          }
+        }
+
+        $ = cheerio.load(articleHTML);
+        articleBody = $('section').attr('name', 'articleBody')
+        let paras = $('p',articleBody);
+        Log("Number of paragraphs: " + paras.length.toString())
+        //if (articles[a].link.includes("footnotes")) {
+        //    $(paras).each( function(i, elem) {
+        //        Log($(this).text().substr(0,20))
+        //    })
+        //
+
+        // Create an array (yieldPara) of <p> elements whose text starts with "Yield:"
+        //  These paragraphs mark the end of a recipe.
+        // Also create an array (instrPara) of <p> elements whose text starts with "1. "
+        //  The paragraphs mark the first instruction step of a recipe.
+        let yieldPara = [];
+        let instrPara = [];
+        $(paras).each( function(k, elem) {
+          //Log("Para " + k.toString() + " starts with: " + $(this).text().substr(0, 10))
+            if ($(this).text().trim().startsWith("Yield:")) {
+                //Log("Pushed Yield: para")
+                yieldPara.push(k)
+            }
+            if ($(this).text().trim().startsWith("1. ")) {
+                //Log("Pushed 1. para")
+                instrPara.push(k)
+            }
+        })
+      
+        let yieldRecipes = yieldPara.length;
+        let instrRecipes = instrPara.length;
+        if (yieldRecipes == instrRecipes) {
+            Log("Recipes: " + yieldRecipes.toString());
+        } else {
+            Log("Recipe mismatch: Yield: " + yieldRecipes.toString() + ", 1.: " + instrRecipes.toString())
+        }
+
+        // Sometimes, recipes don't end with "Yield:"
+        // Sometimes, recipe instruction steps aren't numbered
+        // In order to identify recipes, use the more numerous marker.
+        //  If both markers are equal, use the first instruction step marker
+        if (instrRecipes > 0 || yieldRecipes > 0) {
+            if (instrRecipes >= yieldRecipes) {
+                articleResults = recipeParse($, paras, instrPara, "instr", articles[a].title, articles[a].isRecipe, articles[a].isPairing, instrPara.length, articles[a].isBeverage, articles[a].beverageType)
+            } else {
+                articleResults = recipeParse($, paras, yieldPara, "yield", articles[a].title, articles[a].isRecipe, articles[a].isPairing, yieldPara.length, articles[a].isBeverage, articles[a].beverageType)
+            }
+        } else {
+            articleResults = {hasRecipes: false}
+        }
+
+        if (articleResults.hasRecipes) {
+          Log("recipes length: " + articleResults.recipes.length.toString());
+          for (r in articleResults.recipes) {
+              Log(articleResults.recipes[r])
+          }
+          if (displayedURLs.includes(articles[a].link)) {
+            Log("Article already displayed: " + articles[a].title)
+          } else {
+            Log("Display article: " + articles[a].title)
+            displayedURLs.push(articles[a].link)
+            mainWindow.webContents.send('article-display', [JSON.stringify(articles[a]), articleResults.recipes, articleResults.type])
+          }
+        }
+
+        if (articles[a].isBeverage) {
+          Log("Displaying TASTINGS article")
+          mainWindow.webContents.send('article-display', [JSON.stringify(articles[a]), [], articles[a].beverageType])
+        }
+
+        await articlePage.close()
+
+      }
+    }
+
   }
 
 
@@ -315,324 +707,34 @@ async function processDate (dateToSearch, writeToTestcase) {
   if (dayOfWeek == 0) {
       // Sunday URL
       dayURL = `https://www.nytimes.com/search?dropmab=true&endDate=${urlDateToSearch}&query=&sections=Magazine%7Cnyt%3A%2F%2Fsection%2Fa913d1fb-3cdf-556b-9a81-f0b996a1a202&sort=best&startDate=${urlDateToSearch}`
+      searchDomain = "Magazine section"
   } else {
       // Wednesday URL
       dayURL = `https://www.nytimes.com/search?dropmab=true&endDate=${urlDateToSearch}&query=&sections=Food%7Cnyt%3A%2F%2Fsection%2F4f379b11-446b-57ae-8e2a-0cff12e0f26e&sort=best&startDate=${urlDateToSearch}`
-  }
-  
-  // Go to search page listing articles in the selected day's section of interest:
-  //  Magazine (Sunday) or Food (Wednesday).  First, make the dayPage tab active (bringToFront).
-  await dayPage.bringToFront(); 
-  await dayPage.goto(dayURL, {waitUntil: "networkidle0"});
-
-  // If there's a 'Log In' link, log in
-  try {
-    let logInButton = await dayPage.waitForSelector('[data-testid="login-link"]', {timeout: 250});
-    Log("Log In found")
-
-    // Click the Log In link
-    await logInButton.click();
-
-    // Go enter credentials
-    //await login();
-
-    // Wait for navigation back to search results
-    await dayPage.waitForNavigation({waitUntil: 'networkidle0'})
-
-
-  } catch {
-      Log("Log In not found");
+      searchDomain = "Food section"
   }
 
-  // Get number of search results initially displayed
-  let currentSearchResultsNum = await searchResultsNum()
-  Log("Initial search results: " + currentSearchResultsNum.toString())
+  let displayedURLs = [];   // array of article URLs displayed
 
-  async function searchResultsNum() {
-      // Return the number of search results in the page 
-      let $ = cheerio.load(await dayPage.content());
-      let ol = $('ol');
-      let listItems = $('li.css-1l4w6pd', ol)
-      return listItems.length;
+  Log("Searching " + searchDomain)
+  await processSectionOrKeywords(dayURL, searchDomain);
+
+  let keywords = ["Tablespoon", "Shaken", "Recipe", "Yield:"]
+
+  for (k in keywords) {
+    mainWindow.webContents.send('keyword-div', [keywords[k]])
+    let url = `https://www.nytimes.com/search?dropmab=true&endDate=${urlDateToSearch}&query=${keywords[k]}&sort=best&startDate=${urlDateToSearch}`
+    searchDomain = "keyword " + keywords[k]
+    Log("Searching " + searchDomain)
+    await processSectionOrKeywords(url, searchDomain);
   }
 
-  mainWindow.webContents.send('display-spinner')
-  
-  // Look for 'Show More' button and if found, click it 
-  do {
-      Log("Looking for Show More...")
-
-      // Wait 250ms for Show More button to appear, exit loop if it doesn't appear 
-      try {
-          await dayPage.waitForSelector('[data-testid="search-show-more-button"]', {timeout: 250});
-          Log("Show more found")
-      } catch {
-          Log("Show more not found, exiting loop")
-          break;
-      }
-      
-      // If button appears, click it...
-      let button = await dayPage.$('[data-testid="search-show-more-button"]');
-      Log("Pre-click Search Results: " + currentSearchResultsNum.toString())
-      Log("Clicking Show More button");
-      await dayPage.waitForTimeout(3000)
-      await button.click()
-
-      // ... then wait 250ms at a time until the number of search results changes
-      do {
-          Log("Waiting...")
-          await dayPage.waitForTimeout(250);
-          newNum = await searchResultsNum();
-      } while (currentSearchResultsNum == newNum)
-
-      // Update number of search results and repeat
-      currentSearchResultsNum = newNum
-      Log("New search results: " + currentSearchResultsNum.toString())
-
-  } while (true)
-
-  // When all search results are shown, create a array of 
-  //  search result (i.e. article) objects:
-  //  {title:, author:, link:, isBeverage:, isPairing:, isRecipe:}
-
-  // First, create an array of Cheerio objects corresponding to the articles returned by the search.
-  //  - Load search results page HTML into Cheerio.  Search results are displayed in
-  //    an ordered list. Create an array listItems of articles have attribute data-testid=search-bodega-result.
-  let $ = cheerio.load(await dayPage.content()); 
-  let ol = $('ol');
-  let listItems = $('li', ol).filter(function (i, el) {
-    return $(this).attr('data-testid') === 'search-bodega-result'
-  })
-  Log("Final search results: " + listItems.length.toString());
-
-  // Next, iterate over the article list items and extract:
-  //  - the article title
-  //  - the article's author
-  //  - the article's href
-  // 
-  //  Examine the article title to determine if the article is:
-  //   - a beverage tasting article,
-  //   - a beverage pairing article,
-  //   - a stand-alone recipe,
-  //   or an ordinary article
-
-  // Define the array of article objects
-  let articles = [];
-
-  // For each search result article
-  $(listItems).each( async function(i, elem) {
-      Log($('h4',this).text()); // Log title
-
-      // Initialize article type attributes
-      let isPairing = false;
-      let isRecipe = false;
-      let Beverage = [false, null];
-
-      // Get relative href
-      let href = $('a',this).attr('href')
-
-      // Get title
-      let title = $('h4',this).text().trim();
-
-      // Adjust the title, if necessary
-
-      // See if title contains a ';' or a ':'
-      titleMatch = title.match(/[;:]/);
-      Log("titleMatch: " + titleMatch);
-
-      if (titleMatch !== null) {
-        // If so, split the title at the first ';' or ':'        
-        titleSplit = title.split(titleMatch[0]);
-        Log("titleSplit: " + titleSplit);
-
-        // If the title was split at a ';', set the article's title to the portion following the ';' 
-        if (titleMatch[0] == ';') {
-          title = titleSplit.slice(-1)[0];
-
-        // Else if the title was split at a ':' and the portion preceeding the ':' was 'recipe(s)' or 'pairing(s),
-        //  set the article's title to the portion following the ':' 
-        } else if (titleMatch[0] == ':' && titleSplit[0].toLowerCase().match(/recipe+s*|pairing+s*/) !== null) {
-          title = titleSplit.slice(-1)[0];
-        }
-
-        Log("Adjusted title: " + title);
-
-        // Set article type according to the portion preceeding the split
-        let portionPreceeding = titleSplit[0].toLowerCase();
-
-        // See if the article is beverage-related; Beverage = [boolean, display label]
-        Beverage = checkForBeverage(portionPreceeding);
-        Log("Beverage array: " + Beverage)
-
-        function checkForBeverage (portionPreceeding) {
-          // Check the article title to see if the article is beverage-related
-          //
-          // Input: the first part of the article title (preceeding a ';' or ':')
-          //
-          // If portionPreceeding contains 'tasting[s] or starts with 
-          //  'wines', 'beers', 'spirits' or 'ales' etc and is followed by ' of the times',
-          //  then the article is beverage-related and article display will be labeled
-          //  'Tasting", 'Wine', 'Beer', 'Spirits', 'Ale', etc
-          //
-          // Output: Array [boolean isBeverage, string beverageType]
-
-          // Map title text to beverageType
-          let beverageTypeMap = {
-            wines: "Wine",
-            beers: "Beer",
-            spirits: "Spirits",
-            ales: "Ale"
-          }
-
-          // Initialize isBeverage and beverageType: not beverage-related, null
-          let isBeverage = false;
-          let beverageType = null;
-
-          // Split the portionPreceeding by ' of the times'
-          //  The result is [portionPreceeding] if ' of the times' is not found, or
-          //  [x, ""] if portionPreceeding is 'x of the times'
-          let ofTheTimesSplit = portionPreceeding.split(" of the times");
-
-          // See if the first element of the preceeding split result is 'wines', 'beers', 'spirits' or 'ales' etc
-          //  The result is null if not, or [x] where x is 'wines', 'beers', 'spirits' or 'ales' etc
-          let ofTheTimesFirstPart = ofTheTimesSplit[0].match(/^wines$|^beers$|^spirits$|^ales$/)
-
-          // If the portionPreceeding contains 'tasting[s]', the article is beverage-related
-          if (portionPreceeding.match(/tasting+s*/) !== null) {
-            isBeverage = true;
-            beverageType = "Tasting"
-
-          // If the ' of the times' split yielded 2 elements and 
-          //  the first element is 'wines', 'beers', 'spirits' or 'ales' etc,
-          //  then the article is beverage-related and 
-          //  the first element is mapped to an article display label 
-          } else if (ofTheTimesSplit.length == 2 && ofTheTimesFirstPart !== null) {
-            isBeverage = true;
-            beverageType = beverageTypeMap[ofTheTimesFirstPart[0]]
-          }
-
-          return [isBeverage, beverageType]
-        }
-
-        if (portionPreceeding.match(/pairing+s*/) !== null) {
-          isPairing = true;
-        }
-        if (portionPreceeding.match(/recipe+s*/) !== null) {
-          isRecipe = true;
-        }
-
-      }
-
-      // Add an article object to the articles array
-      articles.push(
-          {
-              title: title,
-              author: $('p.css-15w69y9',this).text().substr(3),
-              link: "https://www.nytimes.com" + href.substring(0,href.indexOf('?')),
-              isBeverage: Beverage[0],
-              isPairing: isPairing,
-              isRecipe: isRecipe,
-              beverageType: Beverage[1]
-          }
-      )
-  })
-
-  let articlesNum = articles.length.toString();
-  Log("Array articles length: " + articlesNum);
-
-  // For each article, search the article text for recipes.
-  for (a = 0; a<articles.length; a++) {
-    mainWindow.webContents.send('progress-bar', [(a+1).toString(), articlesNum]);
-    // Create a new page and go to the article
-    articlePage = await browser.newPage(); 
-    articlePage.setDefaultNavigationTimeout(0);
-    Log("Go to article " + articles[a].link)
-    Log("Title: " + articles[a].title)
-    Log("Author: " + articles[a].author)
-    Log("isBeverage: " + articles[a].isBeverage)
-    Log("isRecipe: " + articles[a].isRecipe)
-    Log("beverageType: " + articles[a].beverageType)
-    await articlePage.goto(articles[a].link, {waitUntil: "networkidle0"})
-    // Load article HTML into Cheerio and create an array (paras) of <p> elements
-    let articleHTML = await articlePage.content();
-
-    if (writeToTestcase) {
-      let safeTitle = articles[a].title.replace(/\//g, "\\")
-      fs.writeFileSync(testcase + safeTitle + ".html", articleHTML);
-      fs.writeFileSync(testcase + safeTitle + ".JSON", JSON.stringify(articles[a]))
-    }
-
-    $ = cheerio.load(articleHTML);
-    articleBody = $('section').attr('name', 'articleBody')
-    paras = $('p',articleBody);
-    Log("Number of paragraphs: " + paras.length.toString())
-    //if (articles[a].link.includes("footnotes")) {
-    //    $(paras).each( function(i, elem) {
-    //        Log($(this).text().substr(0,20))
-    //    })
-    //
-    
-    // Create an array (yieldPara) of <p> elements whose text starts with "Yield:"
-    //  These paragraphs mark the end of a recipe.
-    // Also create an array (instrPara) of <p> elements whose text starts with "1. "
-    //  The paragraphs mark the first instruction step of a recipe.
-    let yieldPara = [];
-    let instrPara = [];
-    $(paras).each( function(k, elem) {
-      //Log("Para " + k.toString() + " starts with: " + $(this).text().substr(0, 10))
-        if ($(this).text().trim().startsWith("Yield:")) {
-            //Log("Pushed Yield: para")
-            yieldPara.push(k)
-        }
-        if ($(this).text().trim().startsWith("1. ")) {
-            //Log("Pushed 1. para")
-            instrPara.push(k)
-        }
-    })
-  
-    let yieldRecipes = yieldPara.length;
-    let instrRecipes = instrPara.length;
-    if (yieldRecipes == instrRecipes) {
-        Log("Recipes: " + yieldRecipes.toString());
-    } else {
-        Log("Recipe mismatch: Yield: " + yieldRecipes.toString() + ", 1.: " + instrRecipes.toString())
-    }
-
-    // Sometimes, recipes don't end with "Yield:"
-    // Sometimes, recipe instruction steps aren't numbered
-    // In order to identify recipes, use the more numerous marker.
-    //  If both markers are equal, use the first instruction step marker
-    if (instrRecipes > 0 || yieldRecipes > 0) {
-        if (instrRecipes >= yieldRecipes) {
-            articleResults = recipeParse(instrPara, "instr", articles[a].title, articles[a].isRecipe, articles[a].isPairing, instrPara.length, articles[a].isBeverage, articles[a].beverageType)
-        } else {
-            articleResults = recipeParse(yieldPara, "yield", articles[a].title, articles[a].isRecipe, articles[a].isPairing, yieldPara.length, articles[a].isBeverage, articles[a].beverageType)
-        }
-    } else {
-        articleResults = {hasRecipes: false}
-    }
-
-    if (articleResults.hasRecipes) {
-      Log("recipes length: " + articleResults.recipes.length.toString());
-      for (r in articleResults.recipes) {
-          Log(articleResults.recipes[r])
-      }
-      mainWindow.webContents.send('article-display', [JSON.stringify(articles[a]), articleResults.recipes, articleResults.type])
-    }
-
-    if (articles[a].isBeverage) {
-      Log("Displaying TASTINGS article")
-      mainWindow.webContents.send('article-display', [JSON.stringify(articles[a]), [], articles[a].beverageType])
-    }
-    
-    await articlePage.close()
-
-  }
 
   console.log("end of processDate");
   mainWindow.show();
   mainWindow.setAlwaysOnTop(false);
   mainWindow.webContents.send('process-end')
+  console.log("mainWindow is AlwaysOnTop: " +  mainWindow.isAlwaysOnTop())
 
 }
 
@@ -651,7 +753,9 @@ async function processDate (dateToSearch, writeToTestcase) {
 
 async function authorSearch (author, title) {
   // Search NYT Cooking for recipes by author, then
-  //  filter search results by title
+  //  filter search results by recipe name (title)
+
+  Log("authorSearch entered with author: " + author + ", title: " + title)
 
   // NYT Cooking's treatment of diacritics is inconsistent (see Fitting the Mold 7/20/2003)
   //  Used in function replaceProblematics to replace diacritic marked letters with
@@ -774,17 +878,16 @@ async function authorSearch (author, title) {
         $('div.control-save-btn').remove()
     }
 
-    // If recipe image hasn't been fetched (card-placeholder-image.png),
-    //  change src attribute to specify the actual recipe image
+    // If recipe image src attribute specifies a 'card-placeholder-image' file,
+    //  replace the src attribute with the url specified by the data-src attibute
     let image =  $('img')
     let imageSrc = $(image).attr('src');
-    let imageSrcParts = imageSrc.split('assets/');
-    if (imageSrcParts[1] == 'card-placeholder-image.png') {
+    if (imageSrc.includes('card-placeholder-image')) {
         let imageSrcData =  $(image).data('src');
         $(image).attr('src', imageSrcData);
     }
 
-    // Send <article> element HTML to the NYTCooking renderer process for display
+    // Send <article> element HTML to the NYTCooking renderer proces for display
     NYTCooking.webContents.send('display-recipe', [$.html(), section])
 
   }
@@ -845,46 +948,63 @@ async function authorSearch (author, title) {
     // and load the NYTCooking window HTML.
     NYTCooking.loadFile('NYTCooking.html')
 
+    // Close button clicked, close the NYTCooking window
     NYTCooking.on('closed', () => {
       Log("NYTCooking window closed")
       NYTCookingID = null;
-      if (!NYTCookingPage.isClosed()) {
-        NYTCookingPage.close();
-      }
+      //if (!NYTCookingPage.isClosed()) {
+      //  NYTCookingPage.close();
+      //}
+    })
+
+    // Respond to request from new NYTCooking window for search args, author and recipe title
+    ipcMain.handleOnce('getSearchArgs', () => {
+      Log("getSearchArgs handler entered, returning author: " + author + " and title: " + title)
+      return [author, title]
     })
 
     // Search NYT Cooking
     NYTCookingPage = await browser.newPage();
     NYTCookingPage.setDefaultNavigationTimeout(0);
+
   } else {
     Log("Reusing NYTCooking window and NYTCookingPage")
+    NYTCooking.webContents.send('set-title', [author, title]);
   }
 
-  NYTCooking.webContents.send('set-title', [author, title]);
+  // Tell the renderer process to clear messages from any previous search
   NYTCooking.webContents.send('clear-messages');
 
-  if (author == '') {
-    Log("No author, searching for title")
-    author = title;
-  }
-
+  // Start new search
   let processingPage = 1;     // Search results page being processed
   let noResults = true;       // No results yet
   let noResultsReason = '';   // Error description
   continueWithResultsPages = true;    // Continue examining next search result page, or not
   lastAuthor = author;
+  let cookingSearchPage;
 
-  // Search NYT Cooking for recipes by the specified author.
-  let cookingSearchPage = `https://cooking.nytimes.com/search?q=${encodeURIComponent(author)}`;
+  // Search NYT Cooking for recipes by the specified author if there's an author, else by title.
+  if (author != '') {
+    cookingSearchPage = `https://cooking.nytimes.com/search?q=${encodeURIComponent(author)}`;
+  } else {
+    cookingSearchPage = `https://cooking.nytimes.com/search?q=${encodeURIComponent(title)}`;
+  }
   await NYTCookingPage.goto(cookingSearchPage, {waitUntil: "networkidle0"});
 
-  // Repeat for each search results page
-  // >>---->
+  // For each search results page, look for exact and fuzzy matches for the
+  //  target recipe
   do {
 
       if (processingPage == 1) {
+        
+          // On the first result page, get the id=pagination-count div,
+          //  which contains the text "1 - n of x results"
           let pc = await NYTCookingPage.$('#pagination-count');
           if (pc !== null) {
+
+              // If a pagination-count div exists, get its text, get n and x,
+              // and calculate x divided by n, rounded up - the number of
+              // results pages
               pages = await pc.evaluate(el => {
                   let pagCntText = el.innerText.split(' ');
                   let perPage = pagCntText[2];
@@ -892,32 +1012,34 @@ async function authorSearch (author, title) {
                   return Math.ceil(totResults / perPage)
               })
           } else {
+
+            // If a pagination-count div does not exist, there's only 1 
+            //  results page
               pages = 1;
           }
-          console.log("Results pages: " + pages.toString());
+          Log("Results pages: " + pages.toString());
           // console.log("page count: " + pages)
           // console.log(pages.split(' '))
       }
 
       if (pages > 1) {
-          if (processingPage == 1) {
-              console.log("Searching " + pages.toString() + " result pages... ")
-              NYTCooking.webContents.send('progress-bar', [processingPage, pages]);
-              // let para = document.createElement("p");
-              // para.classList = "pr-2 pt-2 float-left m-0 text-tiny";
-              // let txt = "Searching " + pages.toString() + " result pages... "
-              // let txnd = document.createTextNode(txt);
-              // para.appendChild(txnd);
-              // mL.appendChild(para);
-              // mL.appendChild(addProgress(processingPage,pages));
-              // stopButton.disabled = false;
-          }
+
+        // If there are multiple result pages, tell the renderer process
+        //  to display a progress bar
+        NYTCooking.webContents.send('progress-bar', [processingPage, pages]);
       }
 
+      // On each search result page,  get the id=search-results div
       let sr = await NYTCookingPage.$('#search-results')
+
+      // Get the section within that div
       let srSect = await sr.$('#search-results > section');
+
+      // Get an array of recipes (article elements) in that section
       let arrayOfArticleElements = await srSect.$$('article');
-      console.log("Number of articles: " + arrayOfArticleElements.length.toString());
+      Log("Number of articles: " + arrayOfArticleElements.length.toString());
+
+      // Create an array of the names of the recipes on the search results page
       let arrayOfRecipeNames = [];
       for (i in arrayOfArticleElements) {
           let txt = await NYTCookingPage.evaluate(el => {
@@ -926,87 +1048,88 @@ async function authorSearch (author, title) {
           }, arrayOfArticleElements[i] );
           arrayOfRecipeNames.push(txt);
       }
-      console.log("Number of returned articles: " + arrayOfRecipeNames.length.toString())
+      Log("Number of returned articles: " + arrayOfRecipeNames.length.toString())
+
       //console.log("Article text:")
       for (a in arrayOfRecipeNames) {
-          // console.log(arrayOfRecipeNames[a])
+          // console.log(arrayOfRecipeNames[a]);
+
+          // For each recipe on the search results page, compare its name to the
+          //  target recipe's name.  The comparison is done on the desensitized
+          //  names of each.  Densentized names have no diacritical marks, 
+          //  straight quotes and apostrophes, and all letters lowercased.
+          // If an exact match is found, the recipe's article element is displayed.
+          // Otherwise, the recipe name is tested for a fuzzy match to the target
+          //  recipe.  A fuzzy match has two "interesting" words in common with the
+          //  target recipe's name.  "Interesting" words are foreign words, 
+          //  adjectives, nouns and past particples.
+          // If a fuzzy match is found, the recipe's article element is displayed
+          //  below any exact matches.
 
           // For recipe name comparisons, remove diacritical marks, 
-          //  straighten quotes and
-          // lower-case the name
+          //  straighten quotes and lower-case the name
           lowerCaseRecipeName = desensitize(arrayOfRecipeNames[a])
+
+          // Check for an exact match
           if (lowerCaseRecipeName == lowerCaseTargetRecipeName) {
-              console.log("Exact match: " + arrayOfRecipeNames[a]);
-              noResults = false;
-              await displayRecipe(arrayOfArticleElements[a], "exact");
+            console.log("Exact match: " + arrayOfRecipeNames[a]);
+            noResults = false;
+            await displayRecipe(arrayOfArticleElements[a], "exact");
+
           } else {
-              if (isFuzzy(lowerCaseRecipeName)) {
-                  console.log("Fuzzy match: " + arrayOfRecipeNames[a]);
-                  noResults = false;
-                  await displayRecipe(arrayOfArticleElements[a], "fuzzy");
-              }
+
+            // Else check for a fuzzy match
+            if (isFuzzy(lowerCaseRecipeName)) {
+              console.log("Fuzzy match: " + arrayOfRecipeNames[a]);
+              noResults = false;
+              await displayRecipe(arrayOfArticleElements[a], "fuzzy");
+            }
+
           }
+
       }
       
       if (++processingPage <= pages) {
-          let processingPageString = processingPage.toString();
-          console.log("Going to search result page " + processingPageString)
-          let nxt = '&page=' + processingPageString;
-          try {
-              gotoResponse = await NYTCookingPage.goto(cookingSearchPage + nxt, {waitUntil: "networkidle0"});
-          } catch (e) {
-              console.error("page.goto error:");
-              console.error(e)
-              continueWithResultsPages = false;
-          }
-          
-          let responseStatus = gotoResponse.status()
-          console.log("Goto response status: " + responseStatus);
-          if (responseStatus != 200) {
-              continueWithResultsPages = false;
-              noResultsReason = " — " + responseStatus + " response on page " + processingPageString
-          }
 
-          NYTCooking.webContents.send('progress-bar', [processingPage, pages]);
-          //mL.removeChild(mL.lastChild);
-          //mL.appendChild(addProgress(processingPage,pages));
+        // If there are more search results pages to be processed, go to the
+        //  next search results page.  In case of error, quit processing pages.
+        let processingPageString = processingPage.toString();
+        console.log("Going to search result page " + processingPageString)
+        let nxt = '&page=' + processingPageString;
+        try {
+            gotoResponse = await NYTCookingPage.goto(cookingSearchPage + nxt, {waitUntil: "networkidle0"});
+        } catch (e) {
+            console.error("page.goto error:");
+            console.error(e)
+            continueWithResultsPages = false;
+        }
+        
+        let responseStatus = gotoResponse.status()
+        console.log("Goto response status: " + responseStatus);
+        if (responseStatus != 200) {
+            continueWithResultsPages = false;
+            noResultsReason = " — " + responseStatus + " response on page " + processingPageString
+        }
+
       }
+
   } while (processingPage <= pages && continueWithResultsPages)
 
-  // If no filtered results, send that to the BYTCooking process
   if (noResults) {
+
+    // If no filtered results, send that to the NYTCooking process
     NYTCooking.webContents.send('no-results', noResultsReason);
   } else {
+
+    // Otherwise, clear any previous messages
     NYTCooking.webContents.send('clear-messages')
   }
 
   // Done filtering: allow other windows to be on top and close browser page
-  NYTCooking.setAlwaysOnTop(false);
+  NYTCooking.setAlwaysOnTop(false); 
 
-  //while (mL.firstChild) {
-  //    mL.removeChild(mL.firstChild);
-  //}
-  //if (noResults) {
-  //    let noResP = document.createElement("p");
-  //    noResP.classList = "text-error m-0 mt-2";
-  //    let txt = "No results" + noResultsReason;
-  //    let txnd = document.createTextNode(txt);
-  //    noResP.appendChild(txnd);;
-  //    mL.appendChild(noResP);
-  //} else {
-  //    let resP = document.createElement("p");
-  //    resP.classList = "m-0 mt-2";
-  //    let txt = "Results for " + recipeNameInput.value;
-  //    let txnd = document.createTextNode(txt);
-  //    resP.appendChild(txnd);;
-  //    mL.appendChild(resP);
-  //}
-  
-
-  //clearButton.disabled = false;
-  //stopButton.disabled = true;
-
-
+  // Tell renerer.js to enable searchButtons
+  mainWindow.webContents.send('enable-searchButtons')
 
 }
 
@@ -1026,6 +1149,16 @@ async function authorSearch (author, title) {
 async function mainline () {
 
   async function createWindow () {
+    // On app ready, attempt to connect puppeteer to an instance of Chrome.
+    // If unsuccessful, terminate the app.
+    // Otherwise, create a browser window and load index.html.
+
+    // Connect to Chrome
+    if (await connectPup() < 0) {
+      console.error("Unable to connect to Chrome, terminating")
+      app.exit()
+    }; 
+
     // Create the browser window.
     mainWindow = new BrowserWindow({
       x: 10,
@@ -1042,8 +1175,6 @@ async function mainline () {
     // and load the index.html of the app.
     mainWindow.loadFile('index.html')
 
-    // Connect to Chrome
-    await connectPup();
     // await launchPup({devtools: true});
     mainWindow.show(); // Focus on mainWindow
 
@@ -1058,8 +1189,6 @@ async function mainline () {
       mainWindow = null
     })
   }
-
-  
 
   // Return last date searched to renderer process
   ipcMain.handle('getLastDate', () => {
@@ -1101,13 +1230,9 @@ async function mainline () {
     Log("Author: " + author);
     Log("Title: " + title);
 
-    ipcMain.handle('getSearchArgs', () => {
-      return [author, title]
-    })
-
     await authorSearch(author, title);
 
-    ipcMain.removeHandler('getSearchArgs')
+    //ipcMain.removeHandler('getSearchArgs')
 
 
   })
@@ -1116,7 +1241,7 @@ async function mainline () {
   //  The mainWindow should be on top while the nytimes.com pages are being navigated and scraped
   //  It should no longer be on top when that process is finished to allow reviewing the pages retained
   ipcMain.on('mainAOT', (event, arg) => {
-    mainWindow.setAlwaysOnTop(arg);
+    //mainWindow.setAlwaysOnTop(arg);
   })
 
   ipcMain.on('mainFocus', (event, arg) => {

@@ -72,6 +72,7 @@ ipcRenderer.on('progress-bar', (e, args) => {
     function addProgress(now,max) {
         // Input:   now - number of articles retrieved
         //          max - number of articles to be retrieved
+        //          searchDomain - 'x section' or 'x keyword' being searched
         // return a <progress> element
     
         Log("addProgress arguments: " + now.toString() + ", " + max.toString())
@@ -88,6 +89,7 @@ ipcRenderer.on('progress-bar', (e, args) => {
     Log(args)
     let curr = parseInt(args[0]);
     let max = parseInt(args[1]);
+    let searchDomain = args[2];
     if (curr == 1) {
         // First time, insert a progress bar
 
@@ -99,7 +101,7 @@ ipcRenderer.on('progress-bar', (e, args) => {
         // Create a "Examining n ... articles" <p> element
         let progPara = document.createElement("p");
         progPara.classList = "pr-2 pt-2 float-left m-0 Pbar";
-        let txt = "Searching " + args[1] + " articles for recipes…";
+        let txt = "Searching " + args[1] + " " + searchDomain + " articles for recipes…";
         let txnd = document.createTextNode(txt);
         progPara.appendChild(txnd);
 
@@ -118,11 +120,37 @@ ipcRenderer.on('progress-bar', (e, args) => {
     }
 })
 
+ipcRenderer.on('keyword-div', (e, args) => {
+    Log("keyword-div received: " + args[0])
+    // Remove the existing progress bar
+    try {
+        document.getElementById('Pbar').remove();
+    } catch {
+        mL.removeChild(mL.lastChild); 
+        console.log("No progress-bar")
+    }
+    // Add an keyword divider
+    let keywDiv = document.createElement("div");
+    keywDiv.className = "keywDiv";
+    let divDiv = document.createElement("div");
+    divDiv.className = "keydiv divider text-left";
+    divDiv.setAttribute('data-content', args[0]);
+    keywDiv.appendChild(divDiv)
+    aL.appendChild(keywDiv)
+
+})
+
 ipcRenderer.on('process-end', (e, args) => {
     Log("process-end received")
     document.getElementById('Pbar').remove();
     startButton.disabled = false;
     dateInput.disabled = false;
+
+    // Enable all Search buttons
+    let searchButtons = document.getElementsByClassName("disen");
+    for(let i = 0; i < searchButtons.length; i++) {
+        searchButtons[i].disabled = false;
+    }
 
 })
 
@@ -147,9 +175,19 @@ ipcRenderer.on('article-display', (e, args) => {
 
     function recipeSearch (evt) {
         evt.preventDefault();
-        let title = evt.target.previousSibling.innerText;
+        //let title = evt.target.previousSibling.innerText;
+        let title = evt.target.dataset.title;
         console.log("recipeSearch entered for " + title)
+        //let author = evt.target.parentNode.parentNode.parentNode.childNodes[1].innerText;
+        let author = evt.target.dataset.author;
         console.log("Author: " + author)
+
+        // Enable all Search buttons
+        let searchButtons = document.getElementsByClassName("disen");
+        for(let i = 0; i < searchButtons.length; i++) {
+            searchButtons[i].disabled = true;
+        }
+
         ipcRenderer.send('author-search', [author, title])
     }
 
@@ -177,65 +215,85 @@ ipcRenderer.on('article-display', (e, args) => {
         artDiv.appendChild(articleA);
         artDiv.lastChild.addEventListener("click", elementClick, false);
 
-        let Author = document.createElement("p");
-        Author.className = "mb-0"
-        Author.textContent = article.author;
-        artDiv.appendChild(Author);
-        artDiv.lastChild.addEventListener("click", elementClick, false);
+        if (!article.link.includes("cooking.nytimes.com")) {
+            // If the article does not link to cooking.nytimes.com,
+            //  add author and recipes elements
 
-        let recipesDiv = document.createElement("div");
-        recipesDiv.className = "bg-secondary columns col-9 ml-0 mb-2 mt-1"
-        let Recipes = document.createElement("small");
-        let recipesSearchDiv = document.createElement("div");
+            let Author = document.createElement("p");
+            Author.className = "mb-0"
+            Author.textContent = article.author;
+            artDiv.appendChild(Author);
+            artDiv.lastChild.addEventListener("click", elementClick, false);
 
-        let clearDiv = document.createElement("div");
-        clearDiv.className = "clearDiv";
+            let recipesDiv = document.createElement("div");
+            recipesDiv.className = "bg-secondary columns col-9 ml-0 mb-2 mt-1"
+            let Recipes = document.createElement("small");
+            let recipesSearchDiv = document.createElement("div");
 
-        console.log("Number of recipes: " + recipes.length.toString());
-        for (i = 0; i<recipes.length; i++) {
-            console.log("Recipe: " + i.toString());
-            if (recipes[i] == "Recipe Name not found") {
-                Log("Name not found skipped");
-                continue;
-            }
-            Recipes.appendChild(document.createTextNode(recipes[i]))
-            if (i < recipes.length-1) {
-                console.log("Add linbreak: " + i.toString())
-                let linebreak = document.createElement("br");
-                Recipes.appendChild(linebreak);
-            }
-            let recipeSearchDiv = document.createElement("div");
-            recipeSearchDiv.className = "float-left mb-1";
-            let searchRecipe = document.createElement("p");
-            searchRecipe.classList = "float-left mb-0 srchArt"
-            searchRecipe.textContent = recipes[i];
-            let searchButton = document.createElement("button");
-            searchButton.classList = "btn float-left btn-sm ml-2"
-            searchButton.textContent = "Search";
-            recipeSearchDiv.appendChild(searchRecipe);
-            recipeSearchDiv.appendChild(searchButton);
-            recipeSearchDiv.lastChild.addEventListener("click", recipeSearch, false);
-            recipesSearchDiv.appendChild(recipeSearchDiv);
             let clearDiv = document.createElement("div");
             clearDiv.className = "clearDiv";
-            recipesSearchDiv.appendChild(clearDiv);
-        }
-        recipesDiv.appendChild(Recipes)
-        artDiv.appendChild(recipesDiv)
-        artDiv.lastChild.addEventListener("click", elementClick, false);
 
-        artDiv.appendChild(recipesSearchDiv);
+            console.log("Number of recipes: " + recipes.length.toString());
+            for (i = 0; i<recipes.length; i++) {
+                console.log("Recipe: " + i.toString());
+                if (recipes[i] == "Recipe Name not found") {
+                    Log("Name not found skipped");
+                    continue;
+                }
+                Recipes.appendChild(document.createTextNode(recipes[i]))
+                if (i < recipes.length-1) {
+                    console.log("Add linbreak: " + i.toString())
+                    let linebreak = document.createElement("br");
+                    Recipes.appendChild(linebreak);
+                }
+                let recipeSearchDiv = document.createElement("div");
+                recipeSearchDiv.className = "float-left mb-1";
+                let searchRecipe = document.createElement("p");
+                searchRecipe.classList = "float-left mb-0 srchArt"
+                searchRecipe.textContent = recipes[i];
+
+                let searchButton = document.createElement("button");
+                searchButton.classList = "btn float-left btn-sm ml-2 disen"
+                searchButton.textContent = "Search";
+                searchButton.dataset.title = recipes[i];
+                searchButton.dataset.author = article.author;
+                searchButton.disabled = true;
+                recipeSearchDiv.appendChild(searchRecipe);
+                recipeSearchDiv.appendChild(searchButton);
+                recipeSearchDiv.lastChild.addEventListener("click", recipeSearch, false);
+                recipesSearchDiv.appendChild(recipeSearchDiv);
+                let clearDiv = document.createElement("div");
+                clearDiv.className = "clearDiv";
+                recipesSearchDiv.appendChild(clearDiv);
+            }
+            recipesDiv.appendChild(Recipes)
+            artDiv.appendChild(recipesDiv)
+            artDiv.lastChild.addEventListener("click", elementClick, false);
+
+            artDiv.appendChild(recipesSearchDiv);
+        }
 
         aL.appendChild(artDiv)
 
     }
 
     let article = JSON.parse(args[0]);
-    let author = article.author;
+    author = article.author;
     let recipes = args[1];
     let type = args[2];
-
     displayArticle( article, recipes, type );
+
+})
+
+//Enable searchButtons on completion of index.js function authorSearch
+ipcRenderer.on('enable-searchButtons', (e, args) => {
+    Log("enable-searchButtons received")
+
+    // Enable all Search buttons
+    let searchButtons = document.getElementsByClassName("disen");
+    for(let i = 0; i < searchButtons.length; i++) {
+        searchButtons[i].disabled = false;
+    }
 
 })
 
@@ -288,6 +346,9 @@ async function Mainline() {
         while (aL.firstChild) {
             aL.removeChild(aL.lastChild);
         }
+
+        // Set displayed URLs to empty
+        displayedURLs = [];
 
         //let pages = await browser.pages();
         //console.log("Pages: " + pages.length.toString())
