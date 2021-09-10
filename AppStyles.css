@@ -3,5 +3,9 @@ p.msg {margin-bottom: 0px}
 p.Pbar {font-size: 14px;}
 progress.Pbar {padding-top: 11px; margin-top: 12px;}
 .artdiv[data-content]::after {padding-left: 0px;}
+.keydiv {border-top-color: grey !important}
+.keydiv[data-content]::after {padding-left: 0px; color: grey;}
+.keywDiv {margin-top: 40px; margin-bottom: 25px;}
 .srchArt {margin-top: 2px;}
 .clearDiv {clear: left;}
+.disen {appearance: none;};
