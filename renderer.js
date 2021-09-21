@@ -182,11 +182,14 @@ ipcRenderer.on('article-display', (e, args) => {
         let author = evt.target.dataset.author;
         console.log("Author: " + author)
 
-        // Enable all Search buttons
+        // Disable all Search buttons
         let searchButtons = document.getElementsByClassName("disen");
         for(let i = 0; i < searchButtons.length; i++) {
             searchButtons[i].disabled = true;
         }
+
+        // Disable the Start button
+        startButton.disabled = true;
 
         ipcRenderer.send('author-search', [author, title])
     }
@@ -294,6 +297,9 @@ ipcRenderer.on('enable-searchButtons', (e, args) => {
     for(let i = 0; i < searchButtons.length; i++) {
         searchButtons[i].disabled = false;
     }
+
+    // Enable the Start button
+    startButton.disabled = false;
 
 })
 
