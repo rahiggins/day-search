@@ -242,11 +242,16 @@ async function processDate (dateToSearch, writeToTestcase) {
                 continue
             }
   
-            // Skip 'Adapted' paragraphs and reset concatention of paragraphs
-            if (p.adapted) {
-                Log("adapted - tempNaN reset");
-                tempNaN = "";
-                continue
+            // Skip 'Adapted' and 'time:' paragraphs and reset concatention of paragraphs
+            if (p.adapted || p.time) {
+              if (p.adapted) {                 
+                c = 'adapted'
+              } else {
+                c = 'time'
+              }
+              Log(c + " - tempNaN reset");
+              tempNaN = "";
+              continue
             }
   
             // Skip paragraphs (e.g. Note:, Advertisement)
@@ -290,7 +295,7 @@ async function processDate (dateToSearch, writeToTestcase) {
           Log("Recipe name set to tempNaN")
           recipeName = tempNaN;
         }
-        // console.log("Recipe name: " + recipeName)
+        Log("Initial recipe name: " + recipeName)
         // console.log("Recipe name split: " + recipeName.split(/\(*.*adapted/i))
 
         // 12/08/2002 (adapted...) as part of the recipe title; 1/7/2001 (wildly adapted...)
@@ -301,7 +306,27 @@ async function processDate (dateToSearch, writeToTestcase) {
           recipeNameIsArticleTitle = true;
           trimmedRecipeName = title;
         }
-        Log("Recipe name: " + trimmedRecipeName);
+
+        // Prior to 2001, article-embedded recipe names were sometimes followed
+        //  by the time to execute the recipe.  If the recipe name includes 'ime:',
+        //  strip the phrase beginning with 'time:' (case-insensitive) from 
+        //  the recipe name.
+        if (trimmedRecipeName.includes('ime:')) {
+          Log("Stripped time: phrase from name")
+          let timeIndex = trimmedRecipeName.toLowerCase().indexOf("time:")
+          trimmedRecipeName = trimmedRecipeName.substring(0,timeIndex)
+        
+        }
+
+        // The same for 'adapted' (case-insensitive)
+        let adaptedIndex = trimmedRecipeName.toLowerCase().indexOf("adapted")
+        if (adaptedIndex > 0) {
+          Log("Stripped 'adapted' phrase from name")
+          trimmedRecipeName = trimmedRecipeName.substring(0,adaptedIndex)
+        
+        }        
+
+        Log("Recorded recipe name: " + trimmedRecipeName);
         recipeNameArray.push(trimmedRecipeName)
     }
     
@@ -336,6 +361,7 @@ async function processDate (dateToSearch, writeToTestcase) {
     //  adapted: true if first word includes (case-insensitive) "Adapted"
     //  punct: true if the paragraph ends with a period, question mark,
     //          exclamation point, apostrophe, quote or right parenthesis.
+    //  time: true if the paragraph includes "total time:" (case-insensitive)
 
   
     let trimmedText = text.trim()
@@ -349,7 +375,8 @@ async function processDate (dateToSearch, writeToTestcase) {
         allCAPS: trimmedText === trimmedText.toUpperCase(),
         ad: words[0] === "Advertisement",
         adapted: words[0].search(/Adapted/i) > -1,
-        punct: trimmedText.match(/[\.\?!\"\')]$/) != null
+        punct: trimmedText.match(/[\.\?!\"\')]$/) != null,
+        time: trimmedText.toLowerCase().includes('total time:')
   
     }
     
@@ -488,15 +515,15 @@ async function processDate (dateToSearch, writeToTestcase) {
 
           // If the title was split at a ';', set the article's title to the portion following the ';' 
           if (titleMatch[0] == ';') {
-            title = titleSplit.slice(-1)[0];
+            title = titleSplit.slice(-1)[0].trim();
 
           // Else if the title was split at a ':' and the portion preceeding the ':' was 'recipe(s)' or 'pairing(s),
           //  set the article's title to the portion following the ':' 
           } else if (titleMatch[0] == ':' && titleSplit[0].toLowerCase().match(/recipe+s*|pairing+s*/) !== null) {
-            title = titleSplit.slice(-1)[0];
+            title = titleSplit.slice(-1)[0].trim();
           }
-
-          Log("Adjusted title: " + title);
+          
+          Log("Adjusted title: " + "'" + title + "'");
 
           // Set article type according to the portion preceeding the split
           let portionPreceeding = titleSplit[0].toLowerCase();
@@ -621,6 +648,14 @@ async function processDate (dateToSearch, writeToTestcase) {
         }
 
         $ = cheerio.load(articleHTML);
+
+        // If the article page contains no div elements, it's a CAPTCHA page.
+        //  Pause to allow the CAPTCHA to be manually solved
+        let divs = $('div')
+        if (divs.length == 0) {
+          throw 'captcha'
+        }
+
         articleBody = $('section').attr('name', 'articleBody')
         let paras = $('p',articleBody);
         Log("Number of paragraphs: " + paras.length.toString())
@@ -911,7 +946,7 @@ async function authorSearch (author, title) {
       // console.log(w)
       for (p in interestingPOS) {
           if (w[1].startsWith(interestingPOS[p])) {
-              // console.log("Interesting")
+              //console.log("Interesting: " + w[1] + " " + interestingPOS[p])
               return true;
           }
   
