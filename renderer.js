@@ -12,8 +12,12 @@ const { ipcRenderer } = require('electron'); // InterProcess Communications
 const { clipboard } = require('electron');  // System clipboard API
 
 let dateInput = document.getElementById('dateSpec');
+let fileInput = document.getElementById('fileSpec');
 let startButton = document.getElementById('startButton');
 let writeSwitch = document.getElementById('writeSwitch');
+let orP = document.getElementById('orP');
+let dateForm = document.getElementById('dateForm');
+let fileForm = document.getElementById('fileForm');
 const mL = document.getElementById('msgs');     // messages list div
 const aL = document.getElementById('aList');     // messages list div
 
@@ -196,9 +200,11 @@ ipcRenderer.on('article-display', (e, args) => {
 
     function displayArticle(article, recipes, type) {
         console.log("Display article and recipes:");
-        console.log("  " + article.title)
-        console.log("  " + author)
-        for (r in recipes) {
+        console.log("  title; " + article.title)
+        console.log("  author: " + article.author)
+        console.log("  href:" + article.link)
+        console.log("article: " + JSON.stringify(article))
+        for (let r = 0; r < recipes.length; r++) {
             console.log("   " + recipes[r])
         }
 
@@ -237,7 +243,7 @@ ipcRenderer.on('article-display', (e, args) => {
             clearDiv.className = "clearDiv";
 
             console.log("Number of recipes: " + recipes.length.toString());
-            for (i = 0; i<recipes.length; i++) {
+            for (let i = 0; i < recipes.length; i++) {
                 console.log("Recipe: " + i.toString());
                 if (recipes[i] == "Recipe Name not found") {
                     Log("Name not found skipped");
@@ -345,6 +351,10 @@ async function Mainline() {
         startButton.disabled = true;
         dateInput.disabled = true;
 
+        // Remove testcase file input
+        orP.remove()
+        fileForm.remove()
+
         // Remove any previous messages
         remvAllMsg();
 
@@ -374,6 +384,19 @@ async function Mainline() {
         //ipcRenderer.send('new-date', dateToSearch);
 
     }
+
+    // When a testcase file is selected, remove the date input elments and
+    //  tell the index.js to process the testcase file
+    fileInput.addEventListener("change", () => {
+        dateForm.remove();
+        orP.remove();
+        let hrefFile = fileInput.files[0].path.replace("html", "txt")
+        ipcRenderer.send('process-file', 
+            [fileInput.files[0].path,
+             hrefFile
+            ]
+        )
+    }, false);
 
 }
 
