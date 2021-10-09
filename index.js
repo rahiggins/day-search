@@ -1,7 +1,7 @@
 // This application searches nytimes.com for articles published on a particular 
 // Sunday or Wednesday.  For Sundays, the search is for articles in the Magazine 
 // section.  For Wednesdays, the search is for articles in the Food section. After the
-// the day-specific section search, the full day is searched for the keywords:
+// the day-specific section search, the full day is searched for these keywords:
 // [tablespoon, shaken, recipe, yield:]
 
 // Each result found by these searches is examined for the presence of recipes.
@@ -20,6 +20,91 @@
 //  and use that instance of Chrome to log in to nytimes.com.  Then start this
 //  application.
 
+// TESTCASE
+
+// The application provides an option to write the HTML of each article examined
+//  to ~/Library/Application Support/day-search/testcase/mm-dd-yyyy and an option
+//  to process one of those HTML files as described above, instead of processing 
+//  all the day's articles.
+
+// The functions that parse an article to identify its title and to identify 
+//  recipes reside in a separate file -- lib.js.  When the option to read an
+//  HTML file is taken, the application checks for the existence of a file
+//  named testcase-lib.js.  If it exists, fuctions in that file are used, instead
+//  of the functions in lib.js.
+
+// When the application fails to parse an article correctly, the day search can
+//  be repeated with the write-to-testcase option.  Then the lib.js file can
+//  duplicated as testcase-lib.js, and testcase-lib.js can be modified to 
+//  attempt to parse the article correctly.  If the attempt is successful,
+//  lib.js can be replaced by testcase-lib.js.
+
+// Code structure:
+//
+//  Global variable definitions
+//  Global function definitions
+//    function Log
+//    function launchPup
+//    function connectPup
+//    function login
+//    function processSectionOrKeywords
+//      function searchResultsNum
+//
+//  function processDate
+//    imports function findRecipes from lib.js
+//    imports function adjustTitle from lib.js
+// 
+//  function authorSearch
+//    function replaceProblematics
+//    function normalizeRecipeName
+//    function isFuzzy
+//    function displayRecipe
+//    NYTCooking.on('closed')
+//    ipcMain.handleOnce('getSearchArgs')
+//
+//  function mainline
+//    function createWindow
+//      mainWindow.on('closed')
+//    ipcMain.handle('getLastDate')
+//    ipcMain.on('process-date')
+//    ipcMain.on('process-file')
+//      imports function findRecipes from testcase-lib.js or lib.js
+//      imports function adjustTitle from testcase-lib.js or lib.js
+//    ipcMain.on('stop-NYTCooking')
+//    ipcMain.on('close-NYTCooking')
+//    ipcMain.on('author-search')
+//    ipcMain.on('mainAOT')
+//    ipcMain.on('mainFocus')
+//    ipcMain.on('article-open')
+//    app.on('ready')
+//    app.on('will-quit')
+//    app.on('window-all-closed')
+
+// Program flow:
+//
+//   Mainline
+//    app.on('ready')
+//      calls createWindow
+//    createWindow
+//      calls connectPup
+//    ipcMain.on('process-date')
+//      calls processDate
+//    processDate
+//      calls processSectionOrKeywords
+//        calls searchResultsNum
+//        calls adjustTitle
+//        calls findRecipes
+//    ipcMain.on('process-file')
+//        calls adjustTitle
+//        calls findRecipes
+//    ipcMain.on('author-search')
+//      calls authorSearch
+//    authorSearch
+//      calls normalizeRecipeName
+//        calls replaceProblematics
+//      calls isFuzzy
+//      calls displayRecipe
+
 // Modules used here
 const {app, BrowserWindow} = require('electron')
 const { ipcMain } = require('electron')
@@ -30,7 +115,7 @@ const puppeteer = require('puppeteer'); // Chrome API
 const cheerio = require('cheerio'); // core jQuery
 const pos = require('pos');  // Part Of Speech classification 
 
-// Get path to application data and set set paths to local data
+// Get path to application data and set set paths to lastDate and testcase
 const appPath = app.getPath('appData') + "/" + app.name + '/';
 const lastDateFile = appPath + 'LastDate.txt';  // Last date processed
 const testcase = appPath + 'testcase/'; // Folder containing testcase data
@@ -42,11 +127,19 @@ let mainWindow
 // Global variables
 let browser;              // Puppeteer browser
 let dayPage;              // Day search page
-let NYTCookingID = null;  // NYT Cooking page ID
+let NYTCookingID = null;  // NYT Cooking window ID
+let NYTCookingPage;       // NYT Cooking page
 let lastAuthor = null;    // Last author searched at NYT Cooking
 let lastStoredDate;       // Last date stored to ~user/Library/Application Support/day-search
-let dateToSearch;
+let dateToSearch;         // YYYY-MM-DD
 let debug = true;         // Used by Log function
+
+let writeToTestcase;      // Boolean - write articles to testcaseDateDir?
+let testcaseDateDir;      // ~/Library/Application Support/day-search/testcase/mm-dd-yyyy
+
+let parsedArticles = [];    // Array of urls of articles parsed
+let parseSkipped = 0;       // Count of articles previously parsed, so skipped
+let articlesDisplayed = 0;  // Count of articles displayed
 
 // Function definitions
 
@@ -74,7 +167,7 @@ async function launchPup (opt) {
 async function connectPup () {
   // Connect Puppeteer to an existing instance of Chrome that is logged in   
   //  to nytimes.com and create a new page
-  // Called from Mainline
+  // Called from createWindow in Mainline
 
   console.log("connectPup: entered");
 
@@ -136,607 +229,294 @@ async function login () {
 //////////////////////////////////////////////////////////////////////////////////////////
 
 
+async function processSectionOrKeywords(url, searchDomain) {
+  // Go to a search page listing articles that match the criteria specified in
+  //  the url argument
+  //
+  // Input: url - www.nytimes.com/search with a query string indicating
+  //              a date and either a section (Magazine | Food) or a keyword
+  //              (tablespoon | shaken | recipe | yield:)
+  //        searchDomain - string: ('X section' | 'keyword X')
 
-async function processDate (dateToSearch, writeToTestcase) {
+  // Access the functions in lib.js
+  //  - adjustTitle: Separate prefixes from the article title and use prefixes
+  //     to set article attributes
+  //  - findRecipes: parse the article's HTML to identify embedded recipes
+  const { adjustTitle, findRecipes } = require('./lib.js')
+
+
+  //
+  // Define a function to return the number of results in the search page
+  //
+  async function searchResultsNum() {
+
+    // Create a Cheerio query function for dayPage
+    let $ = cheerio.load(await dayPage.content());
+
+    // Get the list items in the page's ordered list
+    let listItems = $('li.css-1l4w6pd', 'ol')
+
+    // Return the number of those list items
+    return listItems.length;
+  }
+
+  Log("processSectionOrKeywords entered with url: " + url + ", searchDomain: " + searchDomain);
+
+  // First, make the dayPage tab active (bringToFront).
+  await dayPage.bringToFront();
+
+  // Go to the search results page
+  await dayPage.goto(url, {waitUntil: "networkidle0"});
+
+      // Unused -- the application connects to an existing instance of Chrome logged
+      //            into nytimes.com
+      // // If there's a 'Log In' link, log in
+      // try {
+      //   let logInButton = await dayPage.waitForSelector('[data-testid="login-link"]', {timeout: 250});
+      //   Log("Log In found")
+      // 
+      //   // Click the Log In link
+      //   await logInButton.click();
+      // 
+      //   // Go enter credentials
+      //   //await login();
+      // 
+      //   // Wait for navigation back to search results
+      //   await dayPage.waitForNavigation({waitUntil: 'networkidle0'})
+      // 
+      // 
+      // } catch {
+      //     Log("Log In not found");
+      // }
+
+  //
+  // The search page will display up to 10 articles, and if there are more
+  //  articles that match the search, a "Show More..." button is displayed
+  //  at the bottom of the page.  Each time that button is clicked, 10 more 
+  //  matching articles are added to the search results page and, if there
+  //  are still more undisplayed, another "Show More..." button is displayed
+  //  at the bottom of the page, until there are no more undisplayed search
+  //  results.
+  //
+  // Expand the search results by clicking "Show More..." buttons repeatedly
+  //  until the search results page does not contain a "Show More..." button.
+
+  // Get number of search results initially displayed
+  let currentSearchResultsNum = await searchResultsNum()
+  Log("Initial search results: " + currentSearchResultsNum.toString())
+
+  // Tell the renderer process to display a spinner while expanding the 
+  //  search results
+  mainWindow.webContents.send('display-spinner')
+
+  // Look for 'Show More' button and if found, click it 
+  do {
+      Log("Looking for Show More...")
+
+      // Wait 250ms for Show More button to appear, exit loop if it doesn't appear 
+      try {
+          await dayPage.waitForSelector('[data-testid="search-show-more-button"]', {timeout: 250});
+          Log("Show more found")
+      } catch {
+          Log("Show more not found, exiting loop")
+          break;
+      }
+
+      // If button appears, click it...
+      let button = await dayPage.$('[data-testid="search-show-more-button"]');
+      Log("Pre-click Search Results: " + currentSearchResultsNum.toString())
+      Log("Clicking Show More button");
+      await dayPage.waitForTimeout(3000)
+      await button.click()
+
+      // ... then wait 250ms at a time until the number of search results changes
+      do {
+          Log("Waiting...")
+          await dayPage.waitForTimeout(250);
+          newNum = await searchResultsNum();
+      } while (currentSearchResultsNum == newNum)
+
+      // Update number of search results and repeat
+      currentSearchResultsNum = newNum
+      Log("New search results: " + currentSearchResultsNum.toString())
+
+  } while (true)
+
+  // When all search results are shown, create a array of 
+  //  search result (i.e. article) objects:
+  //  {title:, author:, link:, isBeverage:, isPairing:, isRecipe:}
+
+  // First, create an array of Cheerio objects corresponding to the articles 
+  //   returned by the search. Search results are displayed in an ordered list.
+
+  // Create a Cheerio query function based on the search results page.
+  let $ = cheerio.load(await dayPage.content());
+
+  // Create array listItems of <li> elements in the search results ordered
+  //   list that have attribute data-testid=search-bodega-result.
+  let listItems = $('li', 'ol').filter(function (i, el) {
+    return $(this).attr('data-testid') === 'search-bodega-result'
+  })
+  Log("Final search results: " + listItems.length.toString());
+
+  // Next, iterate over the article list items and extract:
+  //  - the article title
+  //  - the article's author
+  //  - the article's href
+  // 
+  //  Examine the article title to determine if the article is:
+  //   - a beverage tasting article,
+  //   - a beverage pairing article,
+  //   - a stand-alone recipe,
+  //   or an ordinary article
+
+  // Define the array of article objects
+  let articles = [];
+
+  // For each search result article:
+  $(listItems).each( async function(i, elem) {
+    
+    // Get title
+    let title = $('h4',this).text().trim();
+
+    // Get href, discard query string (?...), and prefix relative hrefs
+    let href = $('a',this).attr('href');
+    href = href.substring(0,href.indexOf('?'));
+    if (href.startsWith("/")) {
+      href = `https://www.nytimes.com${href}`;
+    }  
+
+    // Separate article title from prefixes, check prefixes for beverage,
+    //  pairing, recipe, etc.  
+    // Return:
+    //  {title:, isBeverage:, isPairing:, isRecipe:, beverageType:}
+    let articleObj = adjustTitle(title);
+
+    // Add author and href to articleObj
+    articleObj['author'] = $('p.css-15w69y9',this).text().substr(3);
+    articleObj['link'] = href;
+
+    // Push articleObj onto the articles array
+    articles.push(articleObj);
+
+  })
+
+  let articlesNum = articles.length.toString();
+  Log("Array articles length: " + articlesNum);
+
+  // For each article, parse the article HTML to identify embedded recipes.
+  for (a = 0; a<articles.length; a++) {
+
+    // Display progress bar showing progress through this loop
+    mainWindow.webContents.send('progress-bar', [a+1, articlesNum, searchDomain]);
+
+    if (parsedArticles.includes(articles[a].link)) {
+      // If this article's url is in the array of articles already parsed,
+      //  skip parsing it again.
+      parseSkipped++; // Count skipped articles
+      continue;
+    } else {
+      // If not, add this article's url to the array of articles already parsed
+      parsedArticles.push(articles[a].link)
+    }
+
+    Log("Go to article " + articles[a].link)
+    Log("Title: " + articles[a].title)
+    Log("Author: " + articles[a].author)
+    Log("isBeverage: " + articles[a].isBeverage)
+    Log("isRecipe: " + articles[a].isRecipe)
+    Log("beverageType: " + articles[a].beverageType)
+
+
+    if (articles[a].link.includes("cooking.nytimes.com")) {
+      // If this article is an NYT Cooking recipe, just display it without
+      //  parsing it for recipes
+      Log("Display NYT Cooking recipe: " + articles[a].title);
+      articlesDisplayed++;
+      mainWindow.webContents.send('article-display', [JSON.stringify(articles[a]), [articles[a].title], "NYT Cooking"])
+    } else {
+      // Otherwise, create a new browser page and go to the article to parse it
+      articlePage = await browser.newPage(); 
+      articlePage.setDefaultNavigationTimeout(0);
+      await articlePage.waitForTimeout(250); // Wait a quarter sec
+      await articlePage.goto(articles[a].link, {waitUntil: "networkidle0"})
+
+      // Get the article page's HTML and create a Cheerio query function for the HTML
+      let articleHTML = await articlePage.content();
+      $ = cheerio.load(articleHTML);
+
+      if (writeToTestcase) {
+        // If 'Write to testcase' was selected, write the article html and
+        //  the article url to testcaseDateDir 
+        let safeTitle = articles[a].title.replace(/\//g, "\\"); // / => \
+        fs.writeFileSync(testcaseDateDir + safeTitle + ".html", $.html(), "utf8");
+        fs.writeFileSync(testcaseDateDir + safeTitle + ".txt", articles[a].link, "utf8")
+      }
+
+      // If the article page contains no div elements, it's a CAPTCHA page.
+      //  Pause to allow the CAPTCHA to be manually solved
+      let divs = $('div')
+      if (divs.length == 0) {
+        throw 'captcha'
+      }
+
+      // Call findRecipes, which parses the article's HTML to identify recipes and
+      //  displays those recipes.  The function returns the articles displayed.
+      articlesDisplayed += await findRecipes($, articles[a], mainWindow)
+
+      // Close the article browser page
+      await articlePage.close()
+
+    }
+  }
+
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+  async function processDate (dateToSearch) {
   // Search a date (Sunday: Magazine section or Wednesday: Food Section)
-  //  for articles containing recipes
+  //  for articles containing recipes. Then search the day for certain keywords.
 
-  function recipeParse($, paras, arr, demarcation, title, isRecipe, isPairing, numRecipes, isBeverage, beverageType) {
-    // Parse article page text for recipe names
-    // Input:
-    //  - Cheerio function bound to the article HTML
-    //  - Array of the <p> elements in the article (Cheerio objects)
-    //  - Array of indices of the paras array that are recipe demarcations
-    //  - Name of demarcation in the passed array, "instr" or "yield"
-    //  - Article title
-    //  - isRecipe (boolean)
-    //  - isPairing (boolean)
-    //  - number of recipes (unused?)
-    //  - isBeverage (boolean)
-    //  - Beverage type (wine, beer, etc)
-    // Output: Recipe names 
-    //
-    // Each element of the 'demarcations' array corresponds to a recipe.
-    // When the demarcation name is "instr", the array elements are the first
-    //  recipe instruction paragraph (i.e. '1. text').
-    // When the demarcation name is "yield", the array elements are the last
-    //  paragraph of a recipe, which starts with "Yield:"
-    // 
-    // This function ierates through the paragraphs preceeding each demarcation array element
-    //   until a recipe name is found.
-    //
-    //  The recipe name is:
-    //   - A paragraph containing all upper case letters
-    //   - The concatenation of paragraphs between:
-    //    -- a paragraph that starts with a numeral and
-    //    -- a paragraph that starts with "Yield" or that ends with terminal
-    //        punctuation - a period, question mark or exclamation point
+  Log("processDate entered with dateToSearch: " + dateToSearch)
 
-    Log("recipeParse entered")
-    Log(" arr: " + arr);
-    Log(" demarcation: " + demarcation);
-    Log(" Title: " + title);
-    Log(" isRecipe: " + isRecipe);
-    Log(" isPairing: " + isPairing);
-    Log(" numRecipes: " + numRecipes);
-    Log(" isBeverage: " + isBeverage);
-    Log(" beverageType: " + beverageType)
-    
-    let recipeNameArray = [];
-    let recipeNameIsArticleTitle = false;
-  
-    // The difference between "Yield;" markers and "1. " markers is
-    //  the treatment of numbered paragraphs
-    if (demarcation == "instr") {
-        exp = "p.isNum && !p.isInstr"
-    } else {
-        exp = "p.isNum"
-    }
-  
-    // For each recipe marker
-    for (j = 0; j < arr.length; j++) {
-        let last = arr[j];
-        let tempNaN = ""; // Concatenation of paragraphs
-        recipeName = "Recipe Name not found";
+  if (writeToTestcase) {
+    // For writeToTestcase, create an output directory for the date being processed.
 
-        // (01/31/2001: Ahi Katsu with Wasabi Ginger Sauce - 
-        //   recipe name as title, not marked Recipe. Distinguish from FOOTNOTES
-        //   by ingredientFound: p.isNum && !p.isInstr)
-        let ingredientFound = false;
+    // dateToSearch is YYYY-MM-DD.  Use match to extract YYYY and MM-DD from
+    //  dateToSearch, then form testcaseDateDir:
+    //  ~/Library/Application Support/day-search/testcase/mm-dd-yyyy
+    let m = dateToSearch.match(/^(?<yyyy>\d{4})-(?<mmdd>\d{2}-\d{2})$/);
+    let d = m.groups.mmdd + "-" + m.groups.yyyy;
+    testcaseDateDir = testcase + "/" + d + "/"; // testcaseDateDir is a global variable
 
-        let numFound = false; // Don't concat paras until a numeral-started paragraph is found
-  
-        // Walk back through paragraphs from "Yield:" or "1. "
-        for (let i = last-1; i>Math.max(last-50, -1); i--) {
-            let lp = $(paras[i])
-            let t = $(lp).text()
-            let p = para(t)
-            Log(t.substr(0,15) + " " + p.words + " " + p.isNum + " " + p.isInstr + " " + p.yield + " " + p.colon + " " + p.allCAPS + " " + p.ad + " " + p.adapted + " " + p.punct);
-  
-            // All uppercase is a recipe name
-            if (p.allCAPS) {
-                Log("allCAPS");
-                Log(t)
-                if (t == "RECIPES") {
-                    recipeName = tempNaN
-                    tempNaN = ""
-                    break
-                } else {
-                    //recipeName = t
-                    //break
-                    tempNaN = t + " " + tempNaN;
-                    continue
-                }
-            }
-  
-            // Skip paragraphs that start with a numeral (instruction step or ingredient)
-            //  and reset concatention of paragraphs
-            if (eval(exp)) {
-                numFound = true;
-                tempNaN = "";
-                if (!p.isInstr) {
-                  // If not an instruction, then note that it's an ingredient
-                  ingredientFound = true;
-                }
-                Log("isNum - tempNaN reset - ingredient: " + ingredientFound);
-                continue
-            }
-  
-            // Skip 'Adapted' and 'time:' paragraphs and reset concatention of paragraphs
-            if (p.adapted || p.time) {
-              if (p.adapted) {                 
-                c = 'adapted'
-              } else {
-                c = 'time'
-              }
-              Log(c + " - tempNaN reset");
-              tempNaN = "";
-              continue
-            }
-  
-            // Skip paragraphs (e.g. Note:, Advertisement)
-            if (p.colon || p.ad) {
-                Log("Skipped - colon or ad");
-                continue
-            }
-  
-            // If a paragraph containing punctuation and concatenated paragraphs exist, or "Yield:"
-            //  set recipe name and exit loop,
-            // else concatenate paragraph if a paragraph beginning with a numeral
-            //   has been encountered previously
-            //if (((p.words > 9 || p.punct)  && tempNaN != "") || p.yield) {
-            if (((p.punct)  && tempNaN != "") || p.yield) {
-              Log("Text para and tempNaN or Yield- recipeName set");
-              if (p.yield && tempNaN == '') {
-                // If 'Yield:' encountered and tempNaN is empty, look to the subsequent paragraph
-                let subsequentParaText = $(paras[i+1]).text()
-                Log("yield & empty tempNAN, previous paragraph: " + subsequentParaText)
-                recipeName = subsequentParaText
-              } else {
-                recipeName = tempNaN;
-              }
-              tempNaN = "";
-              break
-            } else if (p.punct) {
-                Log("para contains terminal punctuation, skipped");
-                continue
-            } else if (numFound) {
-              Log("numFound so para concatenated");
-              tempNaN = t + " " + tempNaN;
-          }
-        }
-
-        Log("Finished walking back through paragraphs")
-        Log("Ingredients? " + ingredientFound);
-        //Log("Title paragraph number: " + i.toString())
-        Log("isRecipe: " + isRecipe)
-        Log("tempNaN: " + tempNaN)
-        if (tempNaN !== "" && !isRecipe) {
-          Log("Recipe name set to tempNaN")
-          recipeName = tempNaN;
-        }
-        Log("Initial recipe name: " + recipeName)
-        // console.log("Recipe name split: " + recipeName.split(/\(*.*adapted/i))
-
-        // 12/08/2002 (adapted...) as part of the recipe title; 1/7/2001 (wildly adapted...)
-        let trimmedRecipeName = recipeName.split(/\(.*adapted/i)[0].trim();
-        Log("trimmedRecipeName: " + trimmedRecipeName);
-        if ((trimmedRecipeName == "Recipe Name not found" && (isRecipe || (numRecipes == 1 && ingredientFound))) || trimmedRecipeName.toLowerCase() == "recipe") {
-          Log("Recipe name set to title")
-          recipeNameIsArticleTitle = true;
-          trimmedRecipeName = title;
-        }
-
-        // Prior to 2001, article-embedded recipe names were sometimes followed
-        //  by the time to execute the recipe.  If the recipe name includes 'ime:',
-        //  strip the phrase beginning with 'time:' (case-insensitive) from 
-        //  the recipe name.
-        if (trimmedRecipeName.includes('ime:')) {
-          Log("Stripped time: phrase from name")
-          let timeIndex = trimmedRecipeName.toLowerCase().indexOf("time:")
-          trimmedRecipeName = trimmedRecipeName.substring(0,timeIndex)
-        
-        }
-
-        // The same for 'adapted' (case-insensitive)
-        let adaptedIndex = trimmedRecipeName.toLowerCase().indexOf("adapted")
-        if (adaptedIndex > 0) {
-          Log("Stripped 'adapted' phrase from name")
-          trimmedRecipeName = trimmedRecipeName.substring(0,adaptedIndex)
-        
-        }        
-
-        Log("Recorded recipe name: " + trimmedRecipeName);
-        recipeNameArray.push(trimmedRecipeName)
-    }
-    
-    if (recipeNameIsArticleTitle) {
-      type = "Recipe";
-    } else if (isPairing) {
-      type = "Pairing";
-    } else if (isBeverage) {
-      type = beverageType;
-    } else {
-      type = "Article";
-    }
-    Log("Page type: " + type)
-    Log("Some result: " + recipeNameArray.some( (name) => {return name != "Recipe Name not found"}),)
-    return {
-        hasRecipes: recipeNameArray.some( (name) => {return name != "Recipe Name not found"} ),
-        recipes: recipeNameArray,
-        type: type
+    if (!fs.existsSync(testcaseDateDir)) {
+      // If testcaseDateDir does not exist, create it
+      fs.mkdirSync(testcaseDateDir);
     }
   }
-  
-  function para(text) {
-    // Return an object describing paragraph text:
-    //  words: the number of words in the paragraph
-    //  isNum: true if the first character of the paragraph is a numeral
-    //  isInstr: true if the paragraph starts with numerals followed by a period
-    //  yield: true if the first word is Yield:
-    //  colon: true if the first word ends with ':' but is not Yield: or
-    //           the paragraph text ends with ':'
-    //  allCAPS: true if all letters are capital letters
-    //  ad: true if first word is "Advertisement" 
-    //  adapted: true if first word includes (case-insensitive) "Adapted"
-    //  punct: true if the paragraph ends with a period, question mark,
-    //          exclamation point, apostrophe, quote or right parenthesis.
-    //  time: true if the paragraph includes "total time:" (case-insensitive)
 
-  
-    let trimmedText = text.trim()
-    let words = trimmedText.split(/\s+/g); // Split text by whitespace characters
-    return {
-        words: words.length,
-        isNum: Number.isInteger(parseInt(trimmedText.substr(0,1))),
-        isInstr: trimmedText.search(/^\d+\./) > -1,
-        yield: words[0] === "Yield:",
-        colon: (words[0].endsWith(":") && !words[0].startsWith("Yield")) || trimmedText.endsWith(":"),
-        allCAPS: trimmedText === trimmedText.toUpperCase(),
-        ad: words[0] === "Advertisement",
-        adapted: words[0].search(/Adapted/i) > -1,
-        punct: trimmedText.match(/[\.\?!\"\')]$/) != null,
-        time: trimmedText.toLowerCase().includes('total time:')
-  
-    }
-    
-  }
-
-  async function processSectionOrKeywords(url, searchDomain) {
-
-      // Go to search page listing articles in the selected day's section of interest:
-      //  Magazine (Sunday) or Food (Wednesday).  First, make the dayPage tab active (bringToFront).
-    await dayPage.bringToFront(); 
-    await dayPage.goto(url, {waitUntil: "networkidle0"});
-
-    // If there's a 'Log In' link, log in
-    try {
-      let logInButton = await dayPage.waitForSelector('[data-testid="login-link"]', {timeout: 250});
-      Log("Log In found")
-
-      // Click the Log In link
-      await logInButton.click();
-
-      // Go enter credentials
-      //await login();
-
-      // Wait for navigation back to search results
-      await dayPage.waitForNavigation({waitUntil: 'networkidle0'})
-
-
-    } catch {
-        Log("Log In not found");
-    }
-
-    // Get number of search results initially displayed
-    let currentSearchResultsNum = await searchResultsNum()
-    Log("Initial search results: " + currentSearchResultsNum.toString())
-
-    async function searchResultsNum() {
-        // Return the number of search results in the page 
-        let $ = cheerio.load(await dayPage.content());
-        let ol = $('ol');
-        let listItems = $('li.css-1l4w6pd', ol)
-        return listItems.length;
-    }
-
-    mainWindow.webContents.send('display-spinner')
-
-    // Look for 'Show More' button and if found, click it 
-    do {
-        Log("Looking for Show More...")
-
-        // Wait 250ms for Show More button to appear, exit loop if it doesn't appear 
-        try {
-            await dayPage.waitForSelector('[data-testid="search-show-more-button"]', {timeout: 250});
-            Log("Show more found")
-        } catch {
-            Log("Show more not found, exiting loop")
-            break;
-        }
-
-        // If button appears, click it...
-        let button = await dayPage.$('[data-testid="search-show-more-button"]');
-        Log("Pre-click Search Results: " + currentSearchResultsNum.toString())
-        Log("Clicking Show More button");
-        await dayPage.waitForTimeout(3000)
-        await button.click()
-
-        // ... then wait 250ms at a time until the number of search results changes
-        do {
-            Log("Waiting...")
-            await dayPage.waitForTimeout(250);
-            newNum = await searchResultsNum();
-        } while (currentSearchResultsNum == newNum)
-
-        // Update number of search results and repeat
-        currentSearchResultsNum = newNum
-        Log("New search results: " + currentSearchResultsNum.toString())
-
-    } while (true)
-
-    // When all search results are shown, create a array of 
-    //  search result (i.e. article) objects:
-    //  {title:, author:, link:, isBeverage:, isPairing:, isRecipe:}
-
-    // First, create an array of Cheerio objects corresponding to the articles returned by the search.
-    //  - Load search results page HTML into Cheerio.  Search results are displayed in
-    //    an ordered list. Create an array listItems of articles have attribute data-testid=search-bodega-result.
-    let $ = cheerio.load(await dayPage.content()); 
-    let ol = $('ol');
-    let listItems = $('li', ol).filter(function (i, el) {
-      return $(this).attr('data-testid') === 'search-bodega-result'
-    })
-    Log("Final search results: " + listItems.length.toString());
-
-    // Next, iterate over the article list items and extract:
-    //  - the article title
-    //  - the article's author
-    //  - the article's href
-    // 
-    //  Examine the article title to determine if the article is:
-    //   - a beverage tasting article,
-    //   - a beverage pairing article,
-    //   - a stand-alone recipe,
-    //   or an ordinary article
-
-    // Define the array of article objects
-    let articles = [];
-
-    // For each search result article
-    $(listItems).each( async function(i, elem) {
-        Log($('h4',this).text()); // Log title
-
-        // Initialize article type attributes
-        let isPairing = false;
-        let isRecipe = false;
-        let Beverage = [false, null];
-
-        // Get href, discard query string (?...), prefix relative hrefs
-        let href = $('a',this).attr('href');
-        href = href.substring(0,href.indexOf('?'));
-        if (href.startsWith("/")) {
-          href = `https://www.nytimes.com${href}`;
-        }
-
-        // Get title
-        let title = $('h4',this).text().trim();
-
-        // Adjust the title, if necessary
-
-        // See if title contains a ';' or a ':'
-        titleMatch = title.match(/[;:]/);
-        Log("titleMatch: " + titleMatch);
-
-        if (titleMatch !== null) {
-          // If so, split the title at the first ';' or ':'        
-          titleSplit = title.split(titleMatch[0]);
-          Log("titleSplit: " + titleSplit);
-
-          // If the title was split at a ';', set the article's title to the portion following the ';' 
-          if (titleMatch[0] == ';') {
-            title = titleSplit.slice(-1)[0].trim();
-
-          // Else if the title was split at a ':' and the portion preceeding the ':' was 'recipe(s)' or 'pairing(s),
-          //  set the article's title to the portion following the ':' 
-          } else if (titleMatch[0] == ':' && titleSplit[0].toLowerCase().match(/recipe+s*|pairing+s*/) !== null) {
-            title = titleSplit.slice(-1)[0].trim();
-          }
-          
-          Log("Adjusted title: " + "'" + title + "'");
-
-          // Set article type according to the portion preceeding the split
-          let portionPreceeding = titleSplit[0].toLowerCase();
-
-          // See if the article is beverage-related; Beverage = [boolean, display label]
-          Beverage = checkForBeverage(portionPreceeding);
-          Log("Beverage array: " + Beverage)
-
-          function checkForBeverage (portionPreceeding) {
-            // Check the article title to see if the article is beverage-related
-            //
-            // Input: the first part of the article title (preceeding a ';' or ':')
-            //
-            // If portionPreceeding contains 'tasting[s] or starts with 
-            //  'wines', 'beers', 'spirits' or 'ales' etc and is followed by ' of the times',
-            //  then the article is beverage-related and article display will be labeled
-            //  'Tasting", 'Wine', 'Beer', 'Spirits', 'Ale', etc
-            //
-            // Output: Array [boolean isBeverage, string beverageType]
-
-            // Map title text to beverageType
-            let beverageTypeMap = {
-              wines: "Wine",
-              beers: "Beer",
-              spirits: "Spirits",
-              ales: "Ale"
-            }
-
-            // Initialize isBeverage and beverageType: not beverage-related, null
-            let isBeverage = false;
-            let beverageType = null;
-
-            // Split the portionPreceeding by ' of the times'
-            //  The result is [portionPreceeding] if ' of the times' is not found, or
-            //  [x, ""] if portionPreceeding is 'x of the times'
-            let ofTheTimesSplit = portionPreceeding.split(" of the times");
-
-            // See if the first element of the preceeding split result is 'wines', 'beers', 'spirits' or 'ales' etc
-            //  The result is null if not, or [x] where x is 'wines', 'beers', 'spirits' or 'ales' etc
-            let ofTheTimesFirstPart = ofTheTimesSplit[0].match(/^wines$|^beers$|^spirits$|^ales$/)
-
-            // If the portionPreceeding contains 'tasting[s]', the article is beverage-related
-            if (portionPreceeding.match(/tasting+s*/) !== null) {
-              isBeverage = true;
-              beverageType = "Tasting"
-
-            // If the ' of the times' split yielded 2 elements and 
-            //  the first element is 'wines', 'beers', 'spirits' or 'ales' etc,
-            //  then the article is beverage-related and 
-            //  the first element is mapped to an article display label 
-            } else if (ofTheTimesSplit.length == 2 && ofTheTimesFirstPart !== null) {
-              isBeverage = true;
-              beverageType = beverageTypeMap[ofTheTimesFirstPart[0]]
-            }
-
-            return [isBeverage, beverageType]
-          }
-
-          if (portionPreceeding.match(/pairing+s*/) !== null) {
-            isPairing = true;
-          }
-          if (portionPreceeding.match(/recipe+s*/) !== null) {
-            isRecipe = true;
-          }
-
-        }
-
-        // Add an article object to the articles array
-        articles.push(
-            {
-                title: title,
-                author: $('p.css-15w69y9',this).text().substr(3),
-                link: href,
-                isBeverage: Beverage[0],
-                isPairing: isPairing,
-                isRecipe: isRecipe,
-                beverageType: Beverage[1]
-            }
-        )
-    })
-
-    let articlesNum = articles.length.toString();
-    Log("Array articles length: " + articlesNum);
-
-    // For each article, search the article text for recipes.
-    for (a = 0; a<articles.length; a++) {
-      mainWindow.webContents.send('progress-bar', [(a+1).toString(), articlesNum, searchDomain]);
-      if (displayedURLs.includes(articles[a].link)) {
-        Log("Early already displayed: " + articles[a].title)
-        continue;
-      }
-      Log("Go to article " + articles[a].link)
-      Log("Title: " + articles[a].title)
-      Log("Author: " + articles[a].author)
-      Log("isBeverage: " + articles[a].isBeverage)
-      Log("isRecipe: " + articles[a].isRecipe)
-      Log("beverageType: " + articles[a].beverageType)
-
-      if (articles[a].link.includes("cooking.nytimes.com")) {
-        if (displayedURLs.includes(articles[a].link)) {
-          Log("Article already displayed: " + articles[a].title)
-        } else {
-          Log("Display article: " + articles[a].title);
-          displayedURLs.push(articles[a].link)
-          mainWindow.webContents.send('article-display', [JSON.stringify(articles[a]), [articles[a].title], "NYT Cooking"])
-        }
-      } else {
-        // Create a new page and go to the article
-        articlePage = await browser.newPage(); 
-        articlePage.setDefaultNavigationTimeout(0);
-        await articlePage.waitForTimeout(250);
-        await articlePage.goto(articles[a].link, {waitUntil: "networkidle0"})
-        // Load article HTML into Cheerio and create an array (paras) of <p> elements
-        let articleHTML = await articlePage.content();
-
-        if (writeToTestcase) {
-          let safeTitle = articles[a].title.replace(/\//g, "\\")
-          if ( !fs.existsSync(testcase + safeTitle + ".html") ) {
-            fs.writeFileSync(testcase + safeTitle + ".html", articleHTML);
-            fs.writeFileSync(testcase + safeTitle + ".JSON", JSON.stringify(articles[a]))
-          }
-        }
-
-        $ = cheerio.load(articleHTML);
-
-        // If the article page contains no div elements, it's a CAPTCHA page.
-        //  Pause to allow the CAPTCHA to be manually solved
-        let divs = $('div')
-        if (divs.length == 0) {
-          throw 'captcha'
-        }
-
-        articleBody = $('section').attr('name', 'articleBody')
-        let paras = $('p',articleBody);
-        Log("Number of paragraphs: " + paras.length.toString())
-        //if (articles[a].link.includes("footnotes")) {
-        //    $(paras).each( function(i, elem) {
-        //        Log($(this).text().substr(0,20))
-        //    })
-        //
-
-        // Create an array (yieldPara) of <p> elements whose text starts with "Yield:"
-        //  These paragraphs mark the end of a recipe.
-        // Also create an array (instrPara) of <p> elements whose text starts with "1. "
-        //  The paragraphs mark the first instruction step of a recipe.
-        let yieldPara = [];
-        let instrPara = [];
-        $(paras).each( function(k, elem) {
-          //Log("Para " + k.toString() + " starts with: " + $(this).text().substr(0, 10))
-            if ($(this).text().trim().startsWith("Yield:")) {
-                //Log("Pushed Yield: para")
-                yieldPara.push(k)
-            }
-            if ($(this).text().trim().startsWith("1. ")) {
-                //Log("Pushed 1. para")
-                instrPara.push(k)
-            }
-        })
-      
-        let yieldRecipes = yieldPara.length;
-        let instrRecipes = instrPara.length;
-        if (yieldRecipes == instrRecipes) {
-            Log("Recipes: " + yieldRecipes.toString());
-        } else {
-            Log("Recipe mismatch: Yield: " + yieldRecipes.toString() + ", 1.: " + instrRecipes.toString())
-        }
-
-        // Sometimes, recipes don't end with "Yield:"
-        // Sometimes, recipe instruction steps aren't numbered
-        // In order to identify recipes, use the more numerous marker.
-        //  If both markers are equal, use the first instruction step marker
-        if (instrRecipes > 0 || yieldRecipes > 0) {
-            if (instrRecipes >= yieldRecipes) {
-                articleResults = recipeParse($, paras, instrPara, "instr", articles[a].title, articles[a].isRecipe, articles[a].isPairing, instrPara.length, articles[a].isBeverage, articles[a].beverageType)
-            } else {
-                articleResults = recipeParse($, paras, yieldPara, "yield", articles[a].title, articles[a].isRecipe, articles[a].isPairing, yieldPara.length, articles[a].isBeverage, articles[a].beverageType)
-            }
-        } else {
-            articleResults = {hasRecipes: false}
-        }
-
-        if (articleResults.hasRecipes) {
-          Log("recipes length: " + articleResults.recipes.length.toString());
-          for (r in articleResults.recipes) {
-              Log(articleResults.recipes[r])
-          }
-          if (displayedURLs.includes(articles[a].link)) {
-            Log("Article already displayed: " + articles[a].title)
-          } else {
-            Log("Display article: " + articles[a].title)
-            displayedURLs.push(articles[a].link)
-            mainWindow.webContents.send('article-display', [JSON.stringify(articles[a]), articleResults.recipes, articleResults.type])
-          }
-        }
-
-        if (articles[a].isBeverage) {
-          Log("Displaying TASTINGS article")
-          mainWindow.webContents.send('article-display', [JSON.stringify(articles[a]), [], articles[a].beverageType])
-        }
-
-        await articlePage.close()
-
-      }
-    }
-
-  }
-
+  //
+  // Form the article search URL for the day's section that usually has recipes:
+  //  Sunday: Magazine
+  //  Wednesday: Food
+  //
 
   // Remove hyphens from dateToSearch for use in URL
   let urlDateToSearch = dateToSearch.replace(/-/g, '');
+
   // Get day of week (0-6) of selected date
-  let dateToSearchObj = new Date(dateToSearch);
-  let dayOfWeek = dateToSearchObj.getUTCDay()
+  let dateToSearchObj = new Date(dateToSearch); // dateToSearchObj is UTC ...
+  let dayOfWeek = dateToSearchObj.getUTCDay();  // ... so must use getUTCDay()
+
   // Get search URL for the selected day
   let dayURL;
   if (dayOfWeek == 0) {
@@ -749,16 +529,26 @@ async function processDate (dateToSearch, writeToTestcase) {
       searchDomain = "Food section"
   }
 
-  let displayedURLs = [];   // array of article URLs displayed
-
+  // Search the day's recipe section for articles containing embedded recipes
   Log("Searching " + searchDomain)
   await processSectionOrKeywords(dayURL, searchDomain);
 
-  let keywords = ["Tablespoon", "Shaken", "Recipe", "Yield:"]
+  // 
+  // Search all the day's articles for articles containing these keywords:
+  let keywords = ["Tablespoon", "Shaken", "Recipe", "Yield:"];
+  //
 
-  for (k in keywords) {
+
+  for (let k = 0; k < keywords.length; k++) {
+    // For each keyword,
+
+    // Display a horizontal divider for the keyword
     mainWindow.webContents.send('keyword-div', [keywords[k]])
+
+    // Form the search URL specifying the day and the keyword
     let url = `https://www.nytimes.com/search?dropmab=true&endDate=${urlDateToSearch}&query=${keywords[k]}&sort=best&startDate=${urlDateToSearch}`
+
+    // Search the day's articles for the keyword
     searchDomain = "keyword " + keywords[k]
     Log("Searching " + searchDomain)
     await processSectionOrKeywords(url, searchDomain);
@@ -766,8 +556,16 @@ async function processDate (dateToSearch, writeToTestcase) {
 
 
   console.log("end of processDate");
+  Log("Articles displayed: " + articlesDisplayed.toString())
+  Log("Parse skipped: " + parseSkipped.toString())
+
+  // Show and focus on the main browser window
   mainWindow.show();
+
+  // Allow the user to bring other windows to the top
   mainWindow.setAlwaysOnTop(false);
+
+  // Tell the renderer process to remove the progress bar and to enable buttons
   mainWindow.webContents.send('process-end')
   console.log("mainWindow is AlwaysOnTop: " +  mainWindow.isAlwaysOnTop())
 
@@ -793,8 +591,9 @@ async function authorSearch (author, title) {
   Log("authorSearch entered with author: " + author + ", title: " + title)
 
   // NYT Cooking's treatment of diacritics is inconsistent (see Fitting the Mold 7/20/2003)
-  //  Used in function replaceProblematics to replace diacritic marked letters with
-  //  the base letter for recipe name comparison
+  //  Replacing diacritic marked letters with the base letter enables recipe name 
+  //    comparisons despite differing diacritic treatments.
+  //  Used in function replaceProblematics
   let diacritics = {
       a: 'ÀÁÂÃÄÅàáâãäåĀāąĄ',
       c: 'ÇçćĆčČ',
@@ -812,38 +611,41 @@ async function authorSearch (author, title) {
       z: 'ŽžżŻźŹ'
     }//
 
-    // NYT cooking recipe names use left/right apostrophes and quotes while
-    //  the original material used straight apostrophes and quotes.
-    // These objects are used by function replaceProblematics to replace
-    //  left/right with straight for recipe name comparison
-    //
-    // Left/right apostrophes (a) and left/right double quotes (b)
-    let fancy = ({a: decodeURIComponent("%E2%80%98") + decodeURIComponent("%E2%80%99"), 
-                  b: decodeURIComponent("%E2%80%9c") + decodeURIComponent("%E2%80%9d")})//
+  // NYT cooking recipe names use left/right apostrophes and quotes while
+  //  the original material used straight apostrophes and quotes.
+  // These objects are used by function replaceProblematics to replace
+  //  left/right with straight to normalize recipe names for comparison
+  //
+  // Left/right apostrophes (a) and left/right double quotes (b)
+  let fancy = ({a: decodeURIComponent("%E2%80%98") + decodeURIComponent("%E2%80%99"), 
+                b: decodeURIComponent("%E2%80%9c") + decodeURIComponent("%E2%80%9d")})//
+  // Straight apostrophe (a) and straight quote (b)              
+  let plain = ({a: "'", 
+                b: '"'})
 
-    // Straight apostrophe (a) and straight quote (b)              
-    let plain = ({a: "'", 
-                  b: '"'})//
-
+  // Parts Of Speech (package pos) definitions              
   const lexer = new pos.Lexer(); // Splits text into words and other tokens
   const tagger = new pos.Tagger(); // Tags words and other tokens as parts of speech
   const interestingPOS = ["FW", "JJ", "NN", "VBN"] // Foreign words, adjectives, nouns and past particples//
 
   function replaceProblematics(text) {
-    // Replace letters with diacritical marks with the corresponding base letter for recipe name comparisons
+    // Replace letters with diacritical marks with the corresponding base letter to 
+    //  normalize recipe names for comparisons.  See:
     //  https://stackoverflow.com/questions/863800/replacing-diacritics-in-javascript#comment81646726_32756572
     // Replace left/right single and double quotes straight single and double quotes
+    //
     // Input: string 
     // Output: string with diacritical marked letters replaced by base letters and
-    //         left/right quotes replaced by double quotes
+    //         left/right quotes and double quotes replaced by straight quotes and double quotes
+    // Called by: normalizeRecipeName
 
     return text.split('').map(l =>  Object.keys(diacritics).find(k => diacritics[k].includes(l)) || 
                                     plain[Object.keys(fancy).find(k => fancy[k].includes(l))] ||                              
                                     l).join(''); 
   }
 
-  function desensitize(txt) {
-      // Desensitize recipe names for comparison
+  function normalizeRecipeName(txt) {
+      // Normalize recipe names for comparison
       //  Call replaceProblematics to:
       //   - replace diacritic marked letters with the base letter and
       //   - replace left/right single and double quotes with straight single and double quotes
@@ -854,8 +656,9 @@ async function authorSearch (author, title) {
   }
 
   function isFuzzy(recipe) {
-      // Does input recipe (name) contain at least 2 different interesting words from the targetRecipeName?
-      // Called from searchClick
+      // Does input recipe (name) contain at least 2 different interesting words 
+      //  from the targetRecipeName?
+      // Called from authorSearch
       // Input: name of recipe returned by NYT Cooking search
       // Output: boolean
 
@@ -869,7 +672,7 @@ async function authorSearch (author, title) {
       let matched = [];
 
       // See if words in the input recipe name match interesting words in the target recipe name
-      for (w in recipeWords) {
+      for (let w = 0; w < recipeWords.length; w++) {
 
           // Is input recipe name word an interesting target recipe name word that hasn't aleardy been matched?
           if (interestingTargetRecipeNameWords.includes(recipeWords[w]) && !matched.includes(recipeWords[w])) {
@@ -931,7 +734,7 @@ async function authorSearch (author, title) {
   //  replace left/right single and double quotes with staight quotes,
   //  lower-case the name and
   //  replace multiple spaces with a single space
-  let lowerCaseTargetRecipeName = desensitize(title)
+  let lowerCaseTargetRecipeName = normalizeRecipeName(title)
 
   // Extract words from the target recipe name
   let targetRecipeNameWords = lexer.lex(lowerCaseTargetRecipeName);
@@ -944,7 +747,7 @@ async function authorSearch (author, title) {
   //  Use .map to return just the interesting word - the first element of the [word, POS] pair
   let interestingTargetRecipeNameWords = taggedTargetRecipeNameWords.filter(w => {
       // console.log(w)
-      for (p in interestingPOS) {
+      for (let p = 0; p < interestingPOS.length; p++) {
           if (w[1].startsWith(interestingPOS[p])) {
               //console.log("Interesting: " + w[1] + " " + interestingPOS[p])
               return true;
@@ -987,9 +790,10 @@ async function authorSearch (author, title) {
     NYTCooking.on('closed', () => {
       Log("NYTCooking window closed")
       NYTCookingID = null;
-      //if (!NYTCookingPage.isClosed()) {
-      //  NYTCookingPage.close();
-      //}
+      if (!NYTCookingPage.isClosed()) {
+        console.log("On NYTCooking window closed - close NYTCookingPage")
+        NYTCookingPage.close();
+      }
     })
 
     // Respond to request from new NYTCooking window for search args, author and recipe title
@@ -999,6 +803,7 @@ async function authorSearch (author, title) {
     })
 
     // Search NYT Cooking
+    console.log("Create NYTCookingPage")
     NYTCookingPage = await browser.newPage();
     NYTCookingPage.setDefaultNavigationTimeout(0);
 
@@ -1070,13 +875,15 @@ async function authorSearch (author, title) {
       // Get the section within that div
       let srSect = await sr.$('#search-results > section');
 
-      // Get an array of recipes (article elements) in that section
+      // Get an array of <article> elements (recipes) in that section
       let arrayOfArticleElements = await srSect.$$('article');
       Log("Number of articles: " + arrayOfArticleElements.length.toString());
 
-      // Create an array of the names of the recipes on the search results page
+      // Create an array of the names of the recipes on the search results page.
+      // The ith element of arrayOfRecipeNames is the recipe name from the ith
+      //  element of arrayOfArticleElements.
       let arrayOfRecipeNames = [];
-      for (i in arrayOfArticleElements) {
+      for (let i = 0; i < arrayOfArticleElements.length; i++) {
           let txt = await NYTCookingPage.evaluate(el => {
 
               return el.querySelector('h3.name').innerText
@@ -1085,14 +892,14 @@ async function authorSearch (author, title) {
       }
       Log("Number of returned articles: " + arrayOfRecipeNames.length.toString())
 
-      //console.log("Article text:")
-      for (a in arrayOfRecipeNames) {
+      // console.log('Recipe names:')
+      for (let a = 0; a < arrayOfRecipeNames.length; a++) {
           // console.log(arrayOfRecipeNames[a]);
 
           // For each recipe on the search results page, compare its name to the
-          //  target recipe's name.  The comparison is done on the desensitized
-          //  names of each.  Densentized names have no diacritical marks, 
-          //  straight quotes and apostrophes, and all letters lowercased.
+          //  target recipe's name.  The comparison is done on the normalized
+          //  names of each.  Normalized names have no diacritical marks, 
+          //  have straight quotes and apostrophes, and have all letters lowercased.
           // If an exact match is found, the recipe's article element is displayed.
           // Otherwise, the recipe name is tested for a fuzzy match to the target
           //  recipe.  A fuzzy match has two "interesting" words in common with the
@@ -1103,20 +910,24 @@ async function authorSearch (author, title) {
 
           // For recipe name comparisons, remove diacritical marks, 
           //  straighten quotes and lower-case the name
-          lowerCaseRecipeName = desensitize(arrayOfRecipeNames[a])
+          lowerCaseRecipeName = normalizeRecipeName(arrayOfRecipeNames[a])
 
-          // Check for an exact match
           if (lowerCaseRecipeName == lowerCaseTargetRecipeName) {
+            // If the recipe name is an exact match, ...
             console.log("Exact match: " + arrayOfRecipeNames[a]);
             noResults = false;
+
+            // ... display the corresponding <article> element
             await displayRecipe(arrayOfArticleElements[a], "exact");
 
           } else {
 
-            // Else check for a fuzzy match
             if (isFuzzy(lowerCaseRecipeName)) {
+              // Else if the recipe name is an fuzzy match, ...
               console.log("Fuzzy match: " + arrayOfRecipeNames[a]);
               noResults = false;
+
+              // ... display the corresponding <article> element
               await displayRecipe(arrayOfArticleElements[a], "fuzzy");
             }
 
@@ -1234,12 +1045,55 @@ async function mainline () {
   // Handle date selection in mainWindow process
   ipcMain.on('process-date', async (event, arg) => {
     dateToSearch = arg[0];
-    writeToTestcase = arg[1];
-    Log("Date to search: " + dateToSearch )
+    writeToTestcase = arg[1]; // writeToTestcase is a global variable
+    Log("process-date entered with dateToSearch: " + dateToSearch + ", writeToTestcase: " + writeToTestcase)
 
     // Navigate to search results for selected date and date's section (Food or Magazine)
-    //  Return number of number of search results (articles)
-    await processDate(dateToSearch, writeToTestcase);
+    await processDate(dateToSearch)
+  });
+
+  // Handle testcase file selection in the mainWindow process
+  ipcMain.on('process-file', async (event, arg) => {
+    // Input: [HTML filename, href filename]
+    console.log("process-file entered")
+    htmlToParseFile = arg[0];
+    hrefFile = arg[1];
+    Log("HTML to parse file: " + htmlToParseFile)
+    Log("href file: " + hrefFile)
+    let htmlToParse = fs.readFileSync(htmlToParseFile, "utf8");
+    let href = fs.readFileSync(hrefFile, "utf8")
+    articles = []; // array of article objects
+    let libName; // name of file containing functions recipeParse and adjustTitle
+
+    if ( fs.existsSync('./testcase-lib.js') ) {
+      // Use test versions of adjustTitle and findRecipes
+      Log("Using testcase-lib.js")
+      libName = './testcase-lib.js'
+    } else {
+      // Use base versions of adjustTitle and findRecipes
+      Log("Using lib.js")
+      libName = './lib.js'
+    }
+    const { adjustTitle, findRecipes } = require(libName)
+    
+    // Create a Cheerio query function for the article HTML
+    $ = cheerio.load(htmlToParse);
+    // Get title
+    let title = $('h1').text().trim();
+    Log("Title: " + title);
+
+    // Call adjustTitle to remove prefixes from the title
+    let articleObj = adjustTitle(title);
+    // Add author and href to the object returned by adjustTitle and
+    //  push the object to the articles array
+    articleObj['author'] = $('#story > header > div.css-xt80pu.eakwutd0 > div > div > div > p > span.css-1baulvz.last-byline').text();
+    articleObj['link'] = href;
+
+    // Call findRecipes, which parses the article's HTML to identify recipes and
+    //  displays those recipes.  The function returns the articles displayed, which
+    //  for testcase will always be 1.
+    articlesDisplayed = await findRecipes($, articleObj, mainWindow)
+
   });
 
   // Listen for NYTCooking Stop button click
@@ -1257,6 +1111,9 @@ async function mainline () {
     NYTCookingPage.close();
   })
 
+  // Listen for a recipe Search button click; call authorSearch to search
+  //  NYT Cooking for the author and then filter the search results for 
+  //  the recipe name 
   ipcMain.on('author-search', async (evt, args) => {
     console.log("author-search entered")
 
@@ -1266,9 +1123,6 @@ async function mainline () {
     Log("Title: " + title);
 
     await authorSearch(author, title);
-
-    //ipcMain.removeHandler('getSearchArgs')
-
 
   })
   
@@ -1284,6 +1138,8 @@ async function mainline () {
     mainWindow.show();
   })
 
+  // Listen for click on an article in the mainWindow; open the article in 
+  //  Google Chrome
   ipcMain.on('article-open', (event, action, url) => {
     console.log("Recipe opened: " + url);
     exec('open -a "Google Chrome" ' + url, (error, stdout, stderr) => {
@@ -1309,8 +1165,19 @@ async function mainline () {
 
   // On quitting, store the last date searched (if later that the last date stored)
   app.on('will-quit', function () {
+    console.log("On will-quit:")
+    try {
+      if (!NYTCookingPage.isClosed()) {
+        console.log(" closing NYTCookingPage")
+        NYTCookingPage.close()
+      }
+    } catch(e) {
+      //console.log("will-quit - NYTCookingPage error - " + e)
+    }
+    console.log(" closing dayPage")
     dayPage.close()
     if (dateToSearch > lastStoredDate) {
+      console.log(" writing lastDateFile")
       fs.writeFileSync(lastDateFile, dateToSearch, "utf8");
     }
   })
@@ -1334,6 +1201,5 @@ async function mainline () {
 
 }
 
+// Call the mainline function to establish various event listeners
 mainline()
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.

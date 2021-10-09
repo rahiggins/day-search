@@ -1,16 +1,22 @@
 
-The titleMatch processing in index.js needs review.  The wild population of titles
+The titleMatch processing in adjustTitle (lin.js) needs review.  The wild population of titles
  should be inventoried.
 
 Testcase:   ✓ 1) Because of addition of keyword searches, should check if an
                 article has already been recorded.
-            2) Integrate testcase here:
-                a) add file-choser input from day-search-article-parse-test
+            ✓ 2) Integrate testcase here:
+                ✓ a) add file-choser input from day-search-article-parse-test
                     to index.html
-                b) delete input not chosen
-                c) move recipeParse and para (and more?) to a separate file
-                d) If the file-choser input was chosen, check if a test version
-                    of that separate file exists and if so use that.
+                ✓ b) delete input not chosen
+                ✓ c) move recipeParse and para (and more?) to a separate file (lib.js)
+                ✓ c2) copy ipcMain.on('process-file') code from day-search-article-parse-test
+                        index.js
+                ✓ d) If the file-choser input was chosen, check if a test version
+                    of that separate file exists (test_lib.js) and if so use that.            
+            ✓ 3) Create a yyyy-mm-dd directory in the testcase directory and write
+                the files to that directory
+            ✓ 4) Move the code that creates the articles array to a function in lib.js
+            ✓ 5) Move code 462-535 / 1163-1236 to a function in lib.js
 
 
 In function processSectionOrKeywords, articlePage.goto sometimes goes to a 
@@ -36,6 +42,5 @@ In function processSectionOrKeywords, articlePage.goto sometimes goes to a
     Should retry dayPage.goto with url:
     https://www.nytimes.com/search?dropmab=true&endDate=20000216&query=&sections=Style%7Cnyt%3A%2F%2Fsection%2F146e2c45-6586-59ef-bc23-90e88fe2cf0a&sort=best&startDate=20000216
     
-
 
  
