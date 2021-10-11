@@ -49,6 +49,7 @@
 //    function login
 //    function processSectionOrKeywords
 //      function searchResultsNum
+//      function captchaSolution
 //
 //  function processDate
 //    imports function findRecipes from lib.js
@@ -138,8 +139,8 @@ let writeToTestcase;      // Boolean - write articles to testcaseDateDir?
 let testcaseDateDir;      // ~/Library/Application Support/day-search/testcase/mm-dd-yyyy
 
 let parsedArticles = [];    // Array of urls of articles parsed
-let parseSkipped = 0;       // Count of articles previously parsed, so skipped
-let articlesDisplayed = 0;  // Count of articles displayed
+let parseSkipped;           // Count of articles previously parsed, so skipped
+let articlesDisplayed;      // Count of articles displayed
 
 // Function definitions
 
@@ -372,7 +373,7 @@ async function processSectionOrKeywords(url, searchDomain) {
 
   // Define the array of article objects
   let articles = [];
-
+  
   // For each search result article:
   $(listItems).each( async function(i, elem) {
     
@@ -439,11 +440,53 @@ async function processSectionOrKeywords(url, searchDomain) {
       articlePage = await browser.newPage(); 
       articlePage.setDefaultNavigationTimeout(0);
       await articlePage.waitForTimeout(250); // Wait a quarter sec
-      await articlePage.goto(articles[a].link, {waitUntil: "networkidle0"})
 
-      // Get the article page's HTML and create a Cheerio query function for the HTML
-      let articleHTML = await articlePage.content();
-      $ = cheerio.load(articleHTML);
+      // Occasionally, a goto an article page returns a captcha page, which
+      //  can be identified by the absence of any <div> elements.
+      //  In the event of a captcha page, tell the renderer process to display
+      //  a message and a button, then wait for the renderer process to say
+      //  the button was clicked, indicating that the captcha was solved.
+      //  Repeat the goto article page.
+      do {
+
+        // Go to an article page
+        Log("Go to: " + articles[a].link);
+        await articlePage.goto(articles[a].link, {waitUntil: "networkidle0"});
+
+        // Get the article page's HTML and create a Cheerio query function for the HTML
+        let articleHTML = await articlePage.content();
+        $ = cheerio.load(articleHTML);
+
+        // If the article page contains no div elements, it's a CAPTCHA page.
+        //  Pause to allow the CAPTCHA to be manually solved
+        let divs = $('div')
+        if (divs.length == 0) {
+          Log("Captcha detected");
+          gotCaptcha = true;
+
+          // Function to wait for the captcha solved button to be clicked
+          async function captchaSolution() {
+            return new Promise(function (resolve) {
+              ipcMain.on('captcha-solved', async (event, arg) => {
+                resolve();  // Resolve Promise
+              })
+            })
+          }
+
+          // Tell the renderer process to display a 'captcha detected' message
+          //  and a button whose click indicates that the captcha was solved.
+          mainWindow.webContents.send('captcha-detected');
+
+          // Wait for the captcha to be solved
+          await captchaSolution();
+          console.log("Captcha solved");        
+
+        } else {
+          // The article page was returned
+          gotCaptcha = false;
+        }
+
+      } while (gotCaptcha)  // Repeat until the article page is returned
 
       if (writeToTestcase) {
         // If 'Write to testcase' was selected, write the article html and
@@ -451,13 +494,6 @@ async function processSectionOrKeywords(url, searchDomain) {
         let safeTitle = articles[a].title.replace(/\//g, "\\"); // / => \
         fs.writeFileSync(testcaseDateDir + safeTitle + ".html", $.html(), "utf8");
         fs.writeFileSync(testcaseDateDir + safeTitle + ".txt", articles[a].link, "utf8")
-      }
-
-      // If the article page contains no div elements, it's a CAPTCHA page.
-      //  Pause to allow the CAPTCHA to be manually solved
-      let divs = $('div')
-      if (divs.length == 0) {
-        throw 'captcha'
       }
 
       // Call findRecipes, which parses the article's HTML to identify recipes and
@@ -486,7 +522,13 @@ async function processSectionOrKeywords(url, searchDomain) {
   // Search a date (Sunday: Magazine section or Wednesday: Food Section)
   //  for articles containing recipes. Then search the day for certain keywords.
 
-  Log("processDate entered with dateToSearch: " + dateToSearch)
+  Log("processDate entered with dateToSearch: " + dateToSearch);
+
+  // Initialize array of urls of articles parsed, which is used to skip parsing
+  //  articles already parsed, and the count of articles displayed and parses skipped
+  parsedArticles = [];
+  articlesDisplayed = 0;
+  parseSkipped = 0;
 
   if (writeToTestcase) {
     // For writeToTestcase, create an output directory for the date being processed.
@@ -556,8 +598,8 @@ async function processSectionOrKeywords(url, searchDomain) {
 
 
   console.log("end of processDate");
-  Log("Articles displayed: " + articlesDisplayed.toString())
-  Log("Parse skipped: " + parseSkipped.toString())
+  Log("Articles displayed: " + articlesDisplayed.toString());
+  Log("Parse skipped: " + parseSkipped.toString());
 
   // Show and focus on the main browser window
   mainWindow.show();
@@ -1092,7 +1134,7 @@ async function mainline () {
     // Call findRecipes, which parses the article's HTML to identify recipes and
     //  displays those recipes.  The function returns the articles displayed, which
     //  for testcase will always be 1.
-    articlesDisplayed = await findRecipes($, articleObj, mainWindow)
+    let articlesDisplayed = await findRecipes($, articleObj, mainWindow)
 
   });
 
