@@ -4,9 +4,31 @@
 
 // Code structure:
 //
-//   Mainline
-//    Launch Puppeteer
-//    EventListener handler for Start button
+//  Global variable definitions
+//  Global function definitions
+//    function Log
+//    function addMsg
+//    function remvAllMsg
+// 
+//   ipcRenderer.on('display-spinner'
+//   ipcRenderer.on('progress-bar'
+//    function addProgress
+//   ipcRenderer.on('keyword-div')
+//   ipcRenderer.on('process-end')
+//   ipcRenderer.on('article-display')
+//    function elementClick
+//    function recipeSearch
+//    function displayArticle
+//   ipcRenderer.on('enable-searchButtons)
+//   ipcRenderer.on('captcha-detected')
+//   
+//   function Mainline
+//    dateInput Eventlistener for input
+//    function validateDate
+//    startButton EventListener for click
+//    dateInput EventListener for change
+//    function processDate
+//    fileInput EventListener for change
 
 const { ipcRenderer } = require('electron'); // InterProcess Communications
 const { clipboard } = require('electron');  // System clipboard API
@@ -309,6 +331,48 @@ ipcRenderer.on('enable-searchButtons', (e, args) => {
 
 })
 
+
+// On captcha detected, add a message and a button whose click indicates that the 
+//  captcha was solved
+ipcRenderer.on('captcha-detected', (e, args) => {
+    Log("captcha-detected received")
+
+    // Create a <p> element
+    let captchaP = document.createElement('p');
+
+    // Add 'Captcha detected!' to the <p> element
+    let txnd = document.createTextNode('Captcha detected!');
+    captchaP.appendChild(txnd);
+    
+    // Create a Solved button
+    let button = document.createElement('input');
+    button.classList = "btn btn-sm ml-2";
+    button.id = 'solved';
+    button.type = "button";
+    button.value = 'Solved';
+    button.name = button.id;
+
+    // Add the button to the <p> element
+    captchaP.appendChild(button)
+
+    // Insert the <p> element at the beginning of the msgs div
+    mL.prepend(captchaP)
+
+    // Listen for the Solved button to be clicked
+    button.addEventListener('click', (evt) => {
+        evt.preventDefault();
+        Log("Captcha solved button clicked")
+
+        // Tell main process that the captcha has been solved
+        ipcRenderer.send('captcha-solved')
+
+        // Remove the captcha detected mesage and the Solved button
+        captchaP.remove()
+
+    },  {once: true});  // Remove the listener after a click
+
+})
+
 // Mainline function
 async function Mainline() {
     console.log("Entered Mainline");
@@ -318,10 +382,6 @@ async function Mainline() {
     let lastDate = await ipcRenderer.invoke('getLastDate');
     Log("lastDate: " + lastDate);
     dateInput.value = lastDate;
-
-    // Launch Puppeteer
-    // await launchPup();
-    // await connectPup()
 
     // Listen for input event in the date picker
     dateInput.addEventListener('input', validateDate);
