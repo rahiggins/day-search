@@ -230,14 +230,19 @@ async function login () {
 //////////////////////////////////////////////////////////////////////////////////////////
 
 
-async function processSectionOrKeywords(url, searchDomain) {
+async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType) {
   // Go to a search page listing articles that match the criteria specified in
   //  the url argument
   //
   // Input: url - www.nytimes.com/search with a query string indicating
   //              a date and either a section (Magazine | Food) or a keyword
   //              (tablespoon | shaken | recipe | yield:)
-  //        searchDomain - string: ('X section' | 'keyword X')
+  //
+  //        dayOfWeek - integer: ( 0 (Sunday) | 3 (Wednesday) )
+  //
+  //        searchDomain - string: ( 'X section' | 'keyword X' )
+  //
+  //        domainType - string: ( 'section' | 'keyword' )
 
   // Access the functions in lib.js
   //  - adjustTitle: Separate prefixes from the article title and use prefixes
@@ -268,6 +273,54 @@ async function processSectionOrKeywords(url, searchDomain) {
 
   // Go to the search results page
   await dayPage.goto(url, {waitUntil: "networkidle0"});
+
+  // For section searches, see if the list of search results is empty (2/16/2000 - no 
+  //   Food section).  If so, search the Style section instead.
+  if (domainType == 'section') {
+
+    // Define constants needed to transform a search URL from section 
+    //  Food or Magazine to section Style using string.replace().
+    const repl = {
+      0: {                                              // For Sundays
+        'oS': 'Magazine',                               //  old section
+        'oG': 'a913d1fb-3cdf-556b-9a81-f0b996a1a202',   //  old gibberish (identifier)
+        'nS': 'Style',                                  //  new section
+        'nG': '146e2c45-6586-59ef-bc23-90e88fe2cf0a'    //  new gibberish
+      },
+      3: {                                              // For Wednesdays
+        'oS': 'Food',                                   //  old section
+        'oG': '4f379b11-446b-57ae-8e2a-0cff12e0f26e',   //  old gibberish (identifier)
+        'nS': 'Style',                                  //  new section
+        'nG': '146e2c45-6586-59ef-bc23-90e88fe2cf0a'    //  new gibberish
+      }
+    }
+
+    // Convert dayOfWeek to string for use as repl object key
+    let dOW = dayOfWeek.toString()
+
+    // Get the ordered list of search results
+    let ol = await dayPage.$('ol')
+    
+    // Get number of search results (listitems in the ordered list)
+    let sR = await ol.$$('li')
+    let numSearchResults = sR.length
+    Log("--- Number of search results: " + numSearchResults.toString())
+    
+    // If there were no search results, the Food/Magazine section might not exist.
+    //  Try the Style section instead. 
+    if (numSearchResults == 0) {
+
+      // Transform the search URL into a Style section search URL
+      url = url.replace(repl[dOW]['oS'], repl[dOW]['nS']).replace(repl[dOW]['oG'], repl[dOW]['nG']);
+
+      // Change the search domain to 'Style section'
+      searchDomain = searchDomain.replace(repl[dOW]['oS'], repl[dOW]['nS']);
+      Log("Search switched to Style section")
+    }
+
+    // Go to the Style section search results
+    await dayPage.goto(url, {waitUntil: "networkidle0"});
+  }
 
       // Unused -- the application connects to an existing instance of Chrome logged
       //            into nytimes.com
@@ -573,7 +626,7 @@ async function processSectionOrKeywords(url, searchDomain) {
 
   // Search the day's recipe section for articles containing embedded recipes
   Log("Searching " + searchDomain)
-  await processSectionOrKeywords(dayURL, searchDomain);
+  await processSectionOrKeywords(dayURL, dayOfWeek, searchDomain, 'section');
 
   // 
   // Search all the day's articles for articles containing these keywords:
@@ -593,7 +646,7 @@ async function processSectionOrKeywords(url, searchDomain) {
     // Search the day's articles for the keyword
     searchDomain = "keyword " + keywords[k]
     Log("Searching " + searchDomain)
-    await processSectionOrKeywords(url, searchDomain);
+    await processSectionOrKeywords(url, dayOfWeek,searchDomain, 'keyword');
   }
 
 
@@ -1016,7 +1069,7 @@ async function authorSearch (author, title) {
   // Done filtering: allow other windows to be on top and close browser page
   NYTCooking.setAlwaysOnTop(false); 
 
-  // Tell renerer.js to enable searchButtons
+  // Tell renderer.js to enable searchButtons
   mainWindow.webContents.send('enable-searchButtons')
 
 }
@@ -1218,7 +1271,8 @@ async function mainline () {
     }
     console.log(" closing dayPage")
     dayPage.close()
-    if (dateToSearch > lastStoredDate) {
+    if (dateToSearch > lastStoredDate || 
+        dateToSearch.substr(0,4) < lastStoredDate.substr(0,4)) {
       console.log(" writing lastDateFile")
       fs.writeFileSync(lastDateFile, dateToSearch, "utf8");
     }
