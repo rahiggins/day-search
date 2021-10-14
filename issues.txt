@@ -3,28 +3,4 @@ The titleMatch processing in adjustTitle (lin.js) needs review.  The wild popula
  should be inventoried.
 
 
-In function processSectionOrKeywords, articlePage.goto sometimes goes to a 
-    captcha page, instead of the article page.  The captcha page result can be
-    detected because it has no div elements.
-
-    1. Tell the NYT Day Search renderer process about the captcha page and wait
-        for a response.
-    2. In the NYT Day Search renderer process, listen for the captcha page
-        notice.  When received, display a message about the captcha and add
-        a button to the NYT Day Search window to be clicked after the captcha
-        is solved. When the added button is clicked, send a response to the 
-        main process.
-    3. When the renderer process response is received by the main process, 
-        repeat the articlePage.goto.
-
-02/16/2000 - In processSectionOrKeywords 'await dayPage.goto(url, {waitUntil: "networkidle0"});'
-    for url:
-    https://www.nytimes.com/search?dropmab=true&endDate=20000216&query=&sections=Food%7Cnyt%3A%2F%2Fsection%2F4f379b11-446b-57ae-8e2a-0cff12e0f26e&sort=best&startDate=20000216
-
-    returns a page with <ol data-testid="search-results" > that has no listitems.
-
-    Should retry dayPage.goto with url:
-    https://www.nytimes.com/search?dropmab=true&endDate=20000216&query=&sections=Style%7Cnyt%3A%2F%2Fsection%2F146e2c45-6586-59ef-bc23-90e88fe2cf0a&sort=best&startDate=20000216
-    
-
  
