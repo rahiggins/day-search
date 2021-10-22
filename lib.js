@@ -1,4 +1,23 @@
-const debug = true;
+// This file contains functions that parse NYT article HTML to identify embedded
+//  recipes.  
+
+// The functions in the file are:
+//  - Log
+//  - recipeParse
+//  - para
+//  - adjustTitle
+//  - findRecipe
+
+// These functions are called from the index.js process, which requires
+//  adjustTitle and findRecipe
+
+// index.js calls adjustTitle and findRecipe
+
+// findrecipe calls recipeParse, which calls para
+
+// All functions call Log
+
+const debug = true; // Used by function Log
 
 function Log (text) {
   // If debugging, write text to console.log
@@ -9,6 +28,7 @@ function Log (text) {
 
 function recipeParse(demarcation, $, paras, arr, articleObj) {
   // Parse article page text for recipe names
+  // Called by: findRecipe
   // Input:
   //  - Name of demarcation in the passed array, "instr" or "yield"
   //  - Cheerio function bound to the article HTML
@@ -20,7 +40,12 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
   //  -  isPairing (boolean)
   //  -  isBeverage (boolean)
   //  -  beverageType (wine, beer, etc)
-  // Output: Recipe names 
+  // Output: articleResults object - 
+  //         {
+  //            hasRecipes: boolean
+  //            recipes: array of recipe names,
+  //            type: 'Article' | 'Pairing' | 'beverage type' | 'Recipe'
+  //         } 
   //
   // Each element of the 'demarcations' array corresponds to a recipe.
   // When the demarcation name is "instr", the array elements are the first
@@ -28,17 +53,24 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
   // When the demarcation name is "yield", the array elements are the last
   //  paragraph of a recipe, which starts with "Yield:"
   // 
-  // This function ierates through the paragraphs preceeding each demarcation array element
-  //   until a recipe name is found.
+  // This function iterates through the <p> elements preceeding each 
+  //  demarcation array element until a recipe name is found.
   //
   //  The recipe name is:
-  //   - A paragraph containing all upper case letters
-  //   - The concatenation of paragraphs between:
-  //    -- a paragraph that starts with a numeral and
-  //    -- a paragraph that starts with "Yield" or that ends with terminal
-  //        punctuation - a period, question mark or exclamation point
-
-
+  //   - Consecutive <p> elements between:
+  //    -- a <p> element that starts with a numeral and
+  //    -- a <p> element that:
+  //      --- starts with "Yield" or that 
+  //      --- ends with terminal punctuation - 
+  //          a period, question mark or exclamation point or that
+  //      --- consists of RECIPES
+  //
+  //  Because recipe names can be split between consecutive <p> elements
+  //   and because definitive identification of a recipe name depends on
+  //   encountering a subsequent terminating <p> element, the variable
+  let accumRecipeName;
+  //   is used to accumulate recipe name fragments before being assigned as
+  //   the recipe name.    
 
   Log("recipeParse entered")
   Log(" arr: " + arr);
@@ -52,116 +84,144 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     
   let recipeNameArray = [];
   let recipeNameIsArticleTitle = false;
-
-  // The difference between "Yield;" markers and "1. " markers is
-  //  the treatment of numbered paragraphs
-  if (demarcation == "instr") {
-      exp = "p.isNum && !p.isInstr"
-  } else {
-      exp = "p.isNum"
-  }
   
-  // For each recipe marker
+  // For each recipe marker, indicated by an element of arr[],
+  //  find the recipe name
   for (j = 0; j < arr.length; j++) {
-    let last = arr[j];
-    let tempNaN = ""; // Concatenation of paragraphs
+
     recipeName = "Recipe Name not found";
+
+    // Empty the recipe name accumulator.  
+    accumRecipeName = "";
 
     // (01/31/2001: Ahi Katsu with Wasabi Ginger Sauce - 
     //   recipe name as title, not marked Recipe. Distinguish from FOOTNOTES
-    //   by ingredientFound: p.isNum && !p.isInstr)
+    //   by ingredientFound
     let ingredientFound = false;
 
     let numFound = false; // Don't concat paras until a numeral-started paragraph is found
 
-    // Walk back through paragraphs from "Yield:" or "1. "
-    for (let i = last-1; i>Math.max(last-50, -1); i--) {
-      let lp = $(paras[i])
-      let t = $(lp).text()
-      let p = para(t)
-      Log(t.substr(0,15) + " " + p.words + " " + p.isNum + " " + p.isInstr + " " + p.yield + " " + p.colon + " " + p.allCAPS + " " + p.ad + " " + p.adapted + " " + p.punct);
+    // Walk back through <p> elements preceeding the recipe marker, 
+    //  "Yield:" or "1. ", examining each to identify the recipe name
+    for (let i = arr[j]-1; i > -1; i--) {
+      
+      // Get text of each <p> element
+      let t = $(paras[i]).text();
+
+      // Characterize the text - para returns an object containing various attributes
+      let p = para(t);
+      Log(t.substr(0,15) + " " + p.words + " " + p.isNum + " " + p.isInstr + " " + p.isYield + " " + p.colon + " " + p.allCAPS + " " + p.ad + " " + p.adapted + " " + p.punct + " " + p.time);
 
       // All uppercase is a recipe name
       if (p.allCAPS) {
           Log("allCAPS");
           Log(t)
+
+          // If the <p> element consists of RECIPES…
           if (t == "RECIPES") {
-              recipeName = tempNaN
-              tempNaN = ""
-              break
+            
+            // …the recipe name is the previously accumulated recipe name
+            recipeName = accumRecipeName
+
+            // Reset the accumulation and exit the find-recipe-name loop
+            accumRecipeName = ""
+            break
           } else {
-              //recipeName = t
-              //break
-              tempNaN = t + " " + tempNaN;
-              continue
+            
+            // otherwise accumulate the <p> element's text and continue with the 
+            //  next <p> element
+            accumRecipeName = t + " " + accumRecipeName;
+            continue
           }
       }
 
-      // Skip paragraphs that start with a numeral (instruction step or ingredient)
-      //  and reset concatention of paragraphs
-      if (eval(exp)) {
+      // For paragraphs that start with a numeral,
+      //  If the recipe demarcation is 'Yield:' or 
+      //  if the paragraph is not a recipe instruction, then
+      //  note that such a paragraph was found (numFound = true),
+      //  empty accumRecipeName, 
+      //  and if the paragraph is not an instruction, note that an ingredient was 
+      //  found (ingredientFound = true),
+      //  then continue with the next <p> element
+      if (p.isNum && (demarcation == 'yield' || !p.isInstr)) {
           numFound = true;
-          tempNaN = "";
+          accumRecipeName = "";
           if (!p.isInstr) {
             // If not an instruction, then note that it's an ingredient
             ingredientFound = true;
           }
-          Log("isNum - tempNaN reset - ingredient: " + ingredientFound);
+          Log("isNum - accumRecipeName reset - ingredient: " + ingredientFound);
           continue
       }
 
-      // Skip 'Adapted' and 'time:' paragraphs and reset concatention of paragraphs
+      // Skip 'Adapted' and 'time:' <p> elements and empty accumRecipeName
       if (p.adapted || p.time) {
         if (p.adapted) {                 
           c = 'adapted'
         } else {
           c = 'time'
         }
-        Log(c + " - tempNaN reset");
-        tempNaN = "";
+        Log(c + " - accumRecipeName reset");
+        accumRecipeName = "";
         continue
       }
 
-      // Skip paragraphs (e.g. Note:, Advertisement)
+      // Skip certain <p> elements (e.g. Note:, Advertisement)
       if (p.colon || p.ad) {
         Log("Skipped - colon or ad");
         continue
       }
 
-      // If a paragraph containing punctuation and concatenated paragraphs exist, or "Yield:"
-      //  set recipe name and exit loop,
-      // else concatenate paragraph if a paragraph beginning with a numeral
-      //   has been encountered previously
-      //if (((p.words > 9 || p.punct)  && tempNaN != "") || p.yield) {
-      if (((p.punct)  && tempNaN != "") || p.yield) {
-        Log("Text para and tempNaN or Yield- recipeName set");
-        if (p.yield && tempNaN == '') {
-          // If 'Yield:' encountered and tempNaN is empty, look to the subsequent paragraph
+      // Finally ...
+      if (((p.punct)  && accumRecipeName != "") || p.isYield) {
+        // If this <p> element contains terminal puncuation and
+        //  accumRecipeName is not empty
+        // Or if this <p> element contains "Yield:",
+        Log("Terminal punct and accumRecipeName or Yield:");
+
+        if (p.isYield && accumRecipeName == '') {
+          // If 'Yield:' encountered and accumRecipeName is empty, 
+          //  set the recipe name from the subsequent <p> element
           let subsequentParaText = $(paras[i+1]).text()
-          Log("yield & empty tempNAN, previous paragraph: " + subsequentParaText)
+          Log("Yield: & empty accumRecipeName, previous paragraph: " + subsequentParaText)
           recipeName = subsequentParaText
+
         } else {
-          recipeName = tempNaN;
+          // When this <p> element contains terminal puncuation and
+          //  accumRecipeName is not empty, then set the recipe name to accumRecipeName 
+          recipeName = accumRecipeName;
         }
-        tempNaN = "";
+
+        // Clear accumRecipeName and exit the loop
+        accumRecipeName = "";
         break
+
       } else if (p.punct) {
+        // If the <p> element contains terminal puncuation and
+        //  accumRecipeName is empty, continue with the next <p> element
         Log("para contains terminal punctuation, skipped");
         continue
+
       } else if (numFound) {
+        // If this <p> element does not contain terminal punctuation and
+        //  does not contain "Yield:" and
+        //  a <p> element starting with a numeral has previously be encountered,
+        // then prepend this <p> element to accumRecipeName and
+        //  continue with the next <p> element
         Log("numFound so para concatenated");
-        tempNaN = t + " " + tempNaN;
+        accumRecipeName = t + " " + accumRecipeName;
       }
+
     }
 
     Log("Finished walking back through paragraphs")
     Log("Ingredients? " + ingredientFound);
     //Log("Title paragraph number: " + i.toString())
     Log("isRecipe: " + articleObj.isRecipe)
-    Log("tempNaN: " + tempNaN)
-    if (tempNaN !== "" && !articleObj.isRecipe) {
-      Log("Recipe name set to tempNaN")
-      recipeName = tempNaN;
+    Log("accumRecipeName: " + accumRecipeName)
+    if (accumRecipeName !== "" && !articleObj.isRecipe) {
+      Log("Recipe name set to accumRecipeName")
+      recipeName = accumRecipeName;
     }
     Log("Initial recipe name: " + recipeName)
     // console.log("Recipe name split: " + recipeName.split(/\(*.*adapted/i))
@@ -169,6 +229,11 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     // 12/08/2002 (adapted...) as part of the recipe title; 1/7/2001 (wildly adapted...)
     let trimmedRecipeName = recipeName.split(/\(.*adapted/i)[0].trim();
     Log("trimmedRecipeName: " + trimmedRecipeName);
+
+    // Set the recipe name to the article title if,
+    //  if the recipe name was not found and the article is a recipe,
+    //  or there is only one recipe demarcation and an ingredient was found,
+    //  or the recipe name is "recipe"
     if ((trimmedRecipeName == "Recipe Name not found" && (articleObj.isRecipe || (arr.length == 1 && ingredientFound))) || trimmedRecipeName.toLowerCase() == "recipe") {
       Log("Recipe name set to title")
       recipeNameIsArticleTitle = true;
@@ -197,7 +262,8 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     Log("Recorded recipe name: " + trimmedRecipeName);
     recipeNameArray.push(trimmedRecipeName)
   }
-    
+  
+  // Set the article tyoe
   if (recipeNameIsArticleTitle) {
     type = "Recipe";
   } else if (articleObj.isPairing) {
@@ -207,8 +273,11 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
   } else {
     type = "Article";
   }
+
   Log("Page type: " + type)
   Log("Some result: " + recipeNameArray.some( (name) => {return name != "Recipe Name not found"}),)
+
+  // Return an articleResults object
   return {
       hasRecipes: recipeNameArray.some( (name) => {return name != "Recipe Name not found"} ),
       recipes: recipeNameArray,
@@ -222,7 +291,7 @@ function para(text) {
   //  words: the number of words in the paragraph
   //  isNum: true if the first character of the paragraph is a numeral
   //  isInstr: true if the paragraph starts with numerals followed by a period
-  //  yield: true if the first word is Yield:
+  //  isYield: true if the first word is Yield:
   //  colon: true if the first word ends with ':' but is not Yield: or
   //           the paragraph text ends with ':'
   //  allCAPS: true if all letters are capital letters
@@ -238,7 +307,7 @@ function para(text) {
       words: words.length,
       isNum: Number.isInteger(parseInt(trimmedText.substr(0,1))),
       isInstr: trimmedText.search(/^\d+\./) > -1,
-      yield: words[0] === "Yield:",
+      isYield: words[0] === "Yield:",
       colon: (words[0].endsWith(":") && !words[0].startsWith("Yield")) || trimmedText.endsWith(":"),
       allCAPS: trimmedText === trimmedText.toUpperCase(),
       ad: words[0] === "Advertisement",
@@ -269,6 +338,7 @@ function adjustTitle(title) {
     //  'Tasting", 'Wine', 'Beer', 'Spirits', 'Ale', etc
     //
     // Output: Array [boolean isBeverage, string beverageType]
+
     // Map title text to beverageType
     let beverageTypeMap = {
       wines: "Wine",
@@ -276,6 +346,7 @@ function adjustTitle(title) {
       spirits: "Spirits",
       ales: "Ale"
     }
+    
     // Initialize isBeverage and beverageType: not beverage-related, null
     let isBeverage = false;
     let beverageType = null;
@@ -381,8 +452,8 @@ async function findRecipes($, articleObj, mainWindow) {
     Log("Recipe mismatch: Yield: " + yieldRecipes.toString() + ", 1.: " + instrRecipes.toString())
   }
 
-  // Sometimes, recipes don't end with "Yield:"
-  // Sometimes, recipe instruction steps aren't numbered
+  // Sometimes, recipes don't end with "Yield:" (1/29/2006 It Takes a Village)
+  // Sometimes, recipe instruction steps aren't numbered (?)
   // In order to identify recipes, use the more numerous marker.
   //  If both markers are equal, use the first instruction step marker
   if (instrRecipes > 0 || yieldRecipes > 0) {
@@ -420,6 +491,7 @@ async function findRecipes($, articleObj, mainWindow) {
     mainWindow.webContents.send('article-display', [JSON.stringify(articleObj), [], articleObj.beverageType])
   }
 
+  // Return number of articles displayed - used for evaluating code changes
   return articlesDisplayed;
 }
 

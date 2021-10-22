@@ -1169,7 +1169,7 @@ async function mainline () {
       Log("Using lib.js")
       libName = './lib.js'
     }
-    const { adjustTitle, findRecipes } = require(libName)
+    const { adjustTitle, findRecipes } = require(libName);
     
     // Create a Cheerio query function for the article HTML
     $ = cheerio.load(htmlToParse);
@@ -1271,11 +1271,16 @@ async function mainline () {
     }
     console.log(" closing dayPage")
     dayPage.close()
-    if (dateToSearch > lastStoredDate || 
+
+    // Try to update the last stored date. This will fail if a testcase file was
+    //  processed.
+    try {
+      if (dateToSearch > lastStoredDate || 
         dateToSearch.substr(0,4) < lastStoredDate.substr(0,4)) {
-      console.log(" writing lastDateFile")
-      fs.writeFileSync(lastDateFile, dateToSearch, "utf8");
-    }
+        console.log(" writing lastDateFile")
+        fs.writeFileSync(lastDateFile, dateToSearch, "utf8");
+      }
+    } catch {}
   })
 
   // Quit when all windows are closed.
