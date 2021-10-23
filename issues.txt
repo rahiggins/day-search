@@ -2,4 +2,4 @@
 The titleMatch processing in adjustTitle (lin.js) needs review.  The wild population of titles
  should be inventoried.
 
-When NYT Cooking window is closed, enable buttons in the mainWindow.
+

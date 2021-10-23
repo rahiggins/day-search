@@ -17,8 +17,11 @@
 //   ipcRenderer.on('process-end')
 //   ipcRenderer.on('article-display')
 //    function elementClick
+//    function articleOpen
 //    function recipeSearch
 //    function displayArticle
+//    artDiv EventListener for click => elementClick
+//    artDiv EventListener for contextmenu => articleOpen
 //   ipcRenderer.on('enable-searchButtons)
 //   ipcRenderer.on('captcha-detected')
 //   
@@ -199,6 +202,16 @@ ipcRenderer.on('article-display', (e, args) => {
         }
     }
 
+    async function articleOpen (evt) {
+        // ContextMenu event handler for article <a> elements
+        //  IPC send to open article in Chrome
+        evt.preventDefault();
+        let href = evt.target.href;
+        console.log("Opened article: " + evt.target.innerText);
+        console.log(href);
+        ipcRenderer.send('article-open', 'open', href);
+    }
+
     function recipeSearch (evt) {
         evt.preventDefault();
         //let title = evt.target.previousSibling.innerText;
@@ -243,8 +256,9 @@ ipcRenderer.on('article-display', (e, args) => {
         let articleA = document.createElement("a");
         articleA.setAttribute('href', article.link);
         articleA.textContent = article.title;
+        articleA.addEventListener("click", elementClick, false);
+        articleA.addEventListener("contextmenu", articleOpen, false);
         artDiv.appendChild(articleA);
-        artDiv.lastChild.addEventListener("click", elementClick, false);
 
         if (!article.link.includes("cooking.nytimes.com")) {
             // If the article does not link to cooking.nytimes.com,
