@@ -81,6 +81,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
   Log(" numRecipes: " + arr.length);
   Log(" isBeverage: " + articleObj.isBeverage);
   Log(" beverageType: " + articleObj.beverageType)
+  Log(" cookingWithTheTimes: " + articleObj.cookingWithTheTimes)
     
   let recipeNameArray = [];
   let recipeNameIsArticleTitle = false;
@@ -270,6 +271,8 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     type = "Pairing";
   } else if (articleObj.isBeverage) {
     type = articleObj.beverageType;
+  } else if (articleObj.cookingWithTheTimes) {
+    type = 'Cooking With The Times';
   } else {
     type = "Article";
   }
@@ -346,7 +349,7 @@ function adjustTitle(title) {
       spirits: "Spirits",
       ales: "Ale"
     }
-    
+
     // Initialize isBeverage and beverageType: not beverage-related, null
     let isBeverage = false;
     let beverageType = null;
@@ -416,6 +419,17 @@ async function findRecipes($, articleObj, mainWindow) {
 
   let articlesDisplayed = 0;
 
+  // Set articleObj boolean key 'cookingWithTheTimes' as to whether
+  //  the <header> element contains 'Cooking With The Times' 
+  articleObj['cookingWithTheTimes'] = $('p.e6idgb70', 'header').map(function (i, el) {
+    if ($(this).text() === 'Cooking With The Times') {
+      return true;
+    } else {
+    return null
+    }
+  }).toArray().includes(true);
+  Log("cookingWithTheTimes: " + articleObj.cookingWithTheTimes)
+
   // Get the <section> named 'articleBody'
   articleBody = $('section').attr('name', 'articleBody')
 
@@ -481,15 +495,23 @@ async function findRecipes($, articleObj, mainWindow) {
     Log("Display article: " + articleObj.title)
     articlesDisplayed++;
     mainWindow.webContents.send('article-display', [JSON.stringify(articleObj), articleResults.recipes, articleResults.type])
-  }
 
-  if (articleObj.isBeverage) {
+  } else if (articleObj.cookingWithTheTimes) {
+    // If the article is a 'Cooking With The Times' article, display it.
+    Log("Displaying TASTINGS article")
+    articlesDisplayed++;
+    mainWindow.webContents.send('article-display', [JSON.stringify(articleObj), [], 'Cooking With The Times'])
+
+  } else if (articleObj.isBeverage) {
     // If the article is a beverage article (which typicallly don't have
     //  embedded recipes), display it.
     Log("Displaying TASTINGS article")
     articlesDisplayed++;
     mainWindow.webContents.send('article-display', [JSON.stringify(articleObj), [], articleObj.beverageType])
+
   }
+
+
 
   // Return number of articles displayed - used for evaluating code changes
   return articlesDisplayed;

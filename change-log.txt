@@ -1,0 +1,18 @@
+11/09/2021
+    
+    index.js
+
+        - In function connectPup, set puppeteer.connect option { defaultViewport: null }
+            to override the default size 800×600px.
+
+        - In function processDate, add "cooking.nytimes.com" to keywords array.
+
+    lib.js
+
+        - Add support for 'Cooking With The Times' articles: identify them as
+            'Cooking With The Times' and display them even if there are no
+            recipes
+
+    fonts.css
+
+        - Removed superfluous tabs

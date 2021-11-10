@@ -181,6 +181,7 @@ async function connectPup () {
       Log(resp.body.webSocketDebuggerUrl)
       browser = await puppeteer.connect({
           browserWSEndpoint: resp.body.webSocketDebuggerUrl,
+          defaultViewport: null
       });
       dayPage = await browser.newPage();
       dayPage.setDefaultNavigationTimeout(0);
@@ -630,9 +631,7 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
 
   // 
   // Search all the day's articles for articles containing these keywords:
-  let keywords = ["Tablespoon", "Shaken", "Recipe", "Yield:"];
-  //
-
+  let keywords = ["cooking.nytimes.com", "Tablespoon", "Shaken", "Recipe", "Yield:"];
 
   for (let k = 0; k < keywords.length; k++) {
     // For each keyword,
