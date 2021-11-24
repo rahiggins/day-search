@@ -880,13 +880,15 @@ async function authorSearch (author, title) {
     // and load the NYTCooking window HTML.
     NYTCooking.loadFile('NYTCooking.html')
 
-    // Close button clicked, close the NYTCooking window
+    // Close button clicked, close the NYTCooking window and
+    //  enable buttons in the main window
     NYTCooking.on('closed', () => {
       Log("NYTCooking window closed")
       NYTCookingID = null;
       if (!NYTCookingPage.isClosed()) {
         console.log("On NYTCooking window closed - close NYTCookingPage")
         NYTCookingPage.close();
+        mainWindow.webContents.send('enable-searchButtons')
       }
     })
 
