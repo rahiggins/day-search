@@ -39,6 +39,8 @@
 //  attempt to parse the article correctly.  If the attempt is successful,
 //  lib.js can be replaced by testcase-lib.js.
 
+// Branch single-search
+
 // Code structure:
 //
 //  Global variable definitions
