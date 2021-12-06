@@ -3,17 +3,60 @@
 const { ipcRenderer } = require('electron'); // InterProcess Communications
 const { clipboard } = require('electron');  // System clipboard API
 
+const recipesDiv = document.getElementById("recipes");
 const authorP = document.getElementById("author");
 const clearButton = document.getElementById("clearButton");
 const stopButton = document.getElementById("stopButton");
 const closeButton = document.getElementById("closeButton");
 const mL = document.getElementById('msgs');
-const xL = document.getElementById('exact');
-const fL = document.getElementById('fuzzy');
+
+var sections;       // Array of <section> elements
+var sectionIDs;     // Array of <section> element IDs
+var sectionNeedsGrid;   // Array of booleans
 
 
 
 // Function definiitions//
+
+function addRecipeDiv(name) {
+
+    let nameHash = name.hashCode();
+
+    let recipeDiv = document.createElement('div');
+    recipeDiv.id = nameHash;
+
+    let nameDiv = document.createElement('div');
+    nameDiv.classList = 'divider text-left';
+    nameDiv.dataset.content = name;
+
+    let sectDiv = document.createElement('div');
+    sectDiv.classList = "pl-2 ml-2";
+
+    let exactH6 = document.createElement('h6');
+    exactH6.textContent = 'Exact match';
+
+    let fuzzyH6 = document.createElement('h6');
+    fuzzyH6.textContent = 'Fuzzy match';
+
+    let exactSect = document.createElement('section');
+    exactSect.classList = 'recipe-card-list track-card-params';
+    //exactSect.dataset.layout = 'grid';
+    exactSect.id = nameHash + "exact"
+
+    let fuzzySect = document.createElement('section');
+    fuzzySect.classList = 'recipe-card-list track-card-params';
+    //fuzzySect.dataset.layout = 'grid';
+    fuzzySect.id = nameHash + "fuzzy"
+
+    sectDiv.appendChild(exactH6);
+    sectDiv.appendChild(exactSect);
+    sectDiv.appendChild(fuzzyH6);
+    sectDiv.appendChild(fuzzySect)
+
+    recipeDiv.appendChild(nameDiv);
+    recipeDiv.appendChild(sectDiv)
+    recipesDiv.appendChild(recipeDiv);
+}
 
 function addProgress(now,max) {
     // Add/update a progress bar
@@ -35,12 +78,20 @@ async function displayRecipe(evt, args) {
     // Called from searchClick
     // Input:   <article> element HTML,
     //          display section, "exact" ot "fuzzy"
+    //          target recipe name
 
-    let section;
-    if (args[1] == "exact") {
-        section = xL;
-    } else {
-        section = fL;
+    // Create a hash of the target recipe name, which will be used to display the recipe
+    //  in the appropriate location
+    let nameHash = args[2].hashCode();
+    let displaySection = nameHash + args[1];
+    console.log("Display: " + args[2] + " at " + displaySection)
+    let displaySectionIndex = sectionIDs.indexOf(displaySection);
+
+    let section = sections[displaySectionIndex];
+
+    if (sectionNeedsGrid[displaySectionIndex]) {
+        section.dataset.layout = 'grid';
+        sectionNeedsGrid[displaySectionIndex] = false;
     }
 
     // Create a template element
@@ -48,6 +99,7 @@ async function displayRecipe(evt, args) {
 
     // Set the template's HTML to the <article> element's HTML
     temp.innerHTML = args[0];
+
 
     // Append the <article> element to the designated section,
     //  add 'click' and 'contextmenu' event listebers to the <article> element,
@@ -135,6 +187,17 @@ async function articleOpen (evt) {
     ipcRenderer.send('article-open', 'open', recipeURL);
 }
 
+String.prototype.hashCode = function(){
+	var hash = 0;
+	if (this.length == 0) return hash;
+	for (i = 0; i < this.length; i++) {
+		char = this.charCodeAt(i);
+		hash = ((hash<<5)-hash)+char;
+		hash = hash & hash; // Convert to 32bit integer
+	}
+	return hash;
+}
+
 // Mainline function
 async function Mainline() {
 
@@ -148,9 +211,35 @@ async function Mainline() {
 
     let searchArgs = await ipcRenderer.invoke('getSearchArgs');
     console.log("Got searchArgs: " + searchArgs);
-    authorP.innerHTML  = "Searching for " + searchArgs[1] + "<br>by " + searchArgs[0];
+    let [author, name, all] = searchArgs;
+    console.log("author: " + author);
+    console.log("name: " + name)
+    console.log("all: " + all)
 
-    ipcRenderer.on("set-title", (evt, searchArgs) => {
+    if (all) {
+        searchFor = "multiple recipes"
+    } else (
+        searchFor = name[0]
+    )
+
+    authorP.innerHTML  = "Searching for: " + searchFor + "<br>by " + searchArgs[0];
+
+    for (let i = 0; i < name.length; i++) {
+        addRecipeDiv(name[i]);
+    }
+
+    console.log("Gather sections")
+    sections = document.getElementsByTagName('section')
+    console.log("Number of sections: " + sections.length.toString())
+    sectionIDs = [];
+    sectionNeedsGrid = [];
+    for (let i = 0; i < sections.length; i++) {
+        sectionNeedsGrid.push(true);
+        sectionIDs.push(sections[i].id);
+        console.log("SectionID: " + sections[i].id)
+    }
+
+    ipcRenderer.on("set-name", (evt, searchArgs) => {
         console.log("Set searchArgs: " + searchArgs);
         authorP.innerHTML  = "Searching for " + searchArgs[1] + "<br>by " + searchArgs[0];
     })

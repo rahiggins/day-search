@@ -21,6 +21,7 @@
   </head>
   <body>
     <div class="container">
+
       <div class="columns m-2">
         <div class="column col-12">
           <div class="columns">
@@ -39,22 +40,16 @@
           </div>
           <div id=msgs class="float-left">
           </div>
-          <div style="clear: left"></div> 
-          <div class="divider"></div>
-          <div>
-            <h6>Exact matches</h6>
-            <section class="recipe-card-list track-card-params" data-layout="grid" id='exact'>
-            </section>
-          </div>
-          <div>
-            <h6>Fuzzy matches</h6>
-            <section class="recipe-card-list track-card-params" data-layout="grid" id='fuzzy'>
-            </section>
-          </div>
+          <div style="clear: left"></div>
+
         </div>
       </div>
 
+      <div id="recipes">
+      </div>
+
     </div>
+
     <script>
       // You can also require other files to run in this process
       require('./NYTCooking-renderer.js')

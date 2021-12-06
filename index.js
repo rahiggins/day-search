@@ -680,11 +680,14 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
 
 
 
-async function authorSearch (author, title) {
+async function authorSearch (author, title, all) {
   // Search NYT Cooking for recipes by author, then
   //  filter search results by recipe name (title)
+  // Input: author - string
+  //        title - array of strings
+  //        all - boolean, true if title array has more than 1 element
 
-  Log("authorSearch entered with author: " + author + ", title: " + title)
+  Log("authorSearch entered with author: " + author + ", title: " + title + ", all: " + all)
 
   // NYT Cooking's treatment of diacritics is inconsistent (see Fitting the Mold 7/20/2003)
   //  Replacing diacritic marked letters with the base letter enables recipe name 
@@ -705,7 +708,7 @@ async function authorSearch (author, title) {
       u: 'ÙÚÛÜùúûüůŮŪū',
       y: 'ŸÿýÝ',
       z: 'ŽžżŻźŹ'
-    }//
+    }
 
   // NYT cooking recipe names use left/right apostrophes and quotes while
   //  the original material used straight apostrophes and quotes.
@@ -714,7 +717,7 @@ async function authorSearch (author, title) {
   //
   // Left/right apostrophes (a) and left/right double quotes (b)
   let fancy = ({a: decodeURIComponent("%E2%80%98") + decodeURIComponent("%E2%80%99"), 
-                b: decodeURIComponent("%E2%80%9c") + decodeURIComponent("%E2%80%9d")})//
+                b: decodeURIComponent("%E2%80%9c") + decodeURIComponent("%E2%80%9d")})
   // Straight apostrophe (a) and straight quote (b)              
   let plain = ({a: "'", 
                 b: '"'})
@@ -747,49 +750,53 @@ async function authorSearch (author, title) {
       //   - replace left/right single and double quotes with straight single and double quotes
       //  Lower-case all letters
       //  Replace double spaces with a single space
+      //  Trim leading and trailing spaces
+      // Input: txt - array of recipe names
+      // Output: array of normalized recipe names
 
-      return replaceProblematics(txt).toLowerCase().replace(/  +/g, ' ');
+      return txt.map( t => replaceProblematics(t).toLowerCase().replace(/  +/g, ' ').trim() );
   }
 
-  function isFuzzy(recipe) {
-      // Does input recipe (name) contain at least 2 different interesting words 
-      //  from the targetRecipeName?
-      // Called from authorSearch
-      // Input: name of recipe returned by NYT Cooking search
-      // Output: boolean
+  function isFuzzy(recipe, interestingTargetRecipeNameWords) {
+    // Does input recipe (name) contain at least 2 different interesting words 
+    //  from the targetRecipeName?
+    // Called from authorSearch
+    // Input: name of recipe returned by NYT Cooking search
+    // Output: boolean
 
-      // Extract words from input recipe name
-      let recipeWords = lexer.lex(recipe);
+    // Extract words from input recipe name
+    let recipeWords = lexer.lex(recipe);
 
-      // Number of interesting target recipe name words found in the input recipe name
-      let matchedRecipeWords = 0;
+    // Number of interesting target recipe name words found in the input recipe name
+    let matchedRecipeWords = 0;
 
-      // List of interesting target recipe name words found in the input recipe name
-      let matched = [];
+    // List of interesting target recipe name words found in the input recipe name
+    let matched = [];
+    // See if words in the input recipe name match interesting words in the target recipe name
 
-      // See if words in the input recipe name match interesting words in the target recipe name
-      for (let w = 0; w < recipeWords.length; w++) {
+    for (let w = 0; w < recipeWords.length; w++) {
+        // Is input recipe name word an interesting target recipe name word that hasn't aleardy been matched?
 
-          // Is input recipe name word an interesting target recipe name word that hasn't aleardy been matched?
-          if (interestingTargetRecipeNameWords.includes(recipeWords[w]) && !matched.includes(recipeWords[w])) {
+        if (interestingTargetRecipeNameWords.includes(recipeWords[w]) && !matched.includes(recipeWords[w])) {
+            // Yes, count the match ...
+            matchedRecipeWords++
+            // ... and note that the interesting target recipe name word has been matched
+            matched.push(recipeWords[w])
+        }
 
-              // Yes, count the match ...
-              matchedRecipeWords++
+    }
 
-              // ... and note that the interesting target recipe name word has been matched
-              matched.push(recipeWords[w])
-          }
-      }
+    // Return true if the input recipe name contains 2 or more different interesting words
+    return (matchedRecipeWords > 1)
 
-      // Return true if the input recipe name contains 2 or more different interesting words
-      return (matchedRecipeWords > 1)
   }
 
-  async function displayRecipe(recipe, section) {
+  async function displayRecipe(recipe, section, name) {
     // Add a recipe <article> element to the designated section, exact or fuzzy
     // Called from authorSearch
     // Input:   <article> element,
     //          display section, "exact" ot "fuzzy"
+    //          target recipe name
 
     // Extract <article> element HTML
     let oH = await NYTCookingPage.evaluate(el => {
@@ -821,36 +828,60 @@ async function authorSearch (author, title) {
         $(image).attr('src', imageSrcData);
     }
 
-    // Send <article> element HTML to the NYTCooking renderer proces for display
-    NYTCooking.webContents.send('display-recipe', [$.html(), section])
+    // Send <article> element HTML to the NYTCooking renderer process for display
+    NYTCooking.webContents.send('display-recipe', [$.html(), section, name]);
 
   }
 
-  // For recipe name comparisons, modify the input recipe name to remove diacritical marks, 
+  // For recipe name comparisons, modify the input recipe name(s) to remove diacritical marks, 
   //  replace left/right single and double quotes with staight quotes,
   //  lower-case the name and
   //  replace multiple spaces with a single space
-  let lowerCaseTargetRecipeName = normalizeRecipeName(title)
+  let lowerCaseTargetRecipeName = normalizeRecipeName(title);
 
-  // Extract words from the target recipe name
-  let targetRecipeNameWords = lexer.lex(lowerCaseTargetRecipeName);
+  // Extract words from the target recipe name(s)
+  let targetRecipeNameWords = lowerCaseTargetRecipeName.map(
+    recipeName => lexer.lex(recipeName)
+  );
 
-  // Tag target recipe names with Parts Of Speech; returns [ [word, POS], ...]
-  let taggedTargetRecipeNameWords = tagger.tag(targetRecipeNameWords);
+  // Tag target recipe names with Parts Of Speech; returns [ [ [word, POS], ... ], ... ]
+  let taggedTargetRecipeNameWords = targetRecipeNameWords.map(
+    nameWords => tagger.tag(nameWords)
+  )
 
-  // Create array of interesting words in the target recipe name (i.e. Foreign words, adjectives, nouns and past particples)
-  //  Use .filter to select interesting Parts Of Speech
-  //  Use .map to return just the interesting word - the first element of the [word, POS] pair
-  let interestingTargetRecipeNameWords = taggedTargetRecipeNameWords.filter(w => {
-      // console.log(w)
+  // Create array of interesting words in the target recipe name(s) (i.e. Foreign words, adjectives, nouns and past particples)
+  let interestingTargetRecipeNameWords = [];
+
+  for (let i = 0; i < taggedTargetRecipeNameWords.length; i++) {
+    // For the words in each recipe name, ...
+    let taggedWordsArray = taggedTargetRecipeNameWords[i];
+    // ... create an array of the interesting words
+    let interestingWords = []
+
+    for (let j = 0; j < taggedWordsArray.length; j++) {
+      // For each word in the recipe name, ...
+      let wordTag = taggedWordsArray[j][1];
+      // ... see if its Part Of Speech is interesting
+
       for (let p = 0; p < interestingPOS.length; p++) {
-          if (w[1].startsWith(interestingPOS[p])) {
-              //console.log("Interesting: " + w[1] + " " + interestingPOS[p])
-              return true;
-          }
-  
+        // For each interesting Part Of Speech, ...
+        //Log("Interesting?: " + wordTag + " " + interestingPOS[p])
+        // ... see if the recipe name word's POS 'matches'
+        if (wordTag.startsWith(interestingPOS[p])) {
+          // If the POS 'matches', ...
+          //Log("Interesting: " + wordTag + " " + interestingPOS[p]);
+          // ... add the word to the array of interesting words and 
+          //  leave the interesting Part Of Speech loop
+          interestingWords.push(taggedWordsArray[j][0]);
+          break;
+        }
+        
       }
-  }).map(interesting => interesting[0])
+
+    }
+    // Add the array of interesting words to the array of recipe name(s) interesting words
+    interestingTargetRecipeNameWords.push(interestingWords)
+  }
 
   // If the NYTCooking window ID is not null, close the existing NYTCooking window
   if (NYTCookingID !== null && author !== lastAuthor) {
@@ -896,8 +927,8 @@ async function authorSearch (author, title) {
 
     // Respond to request from new NYTCooking window for search args, author and recipe title
     ipcMain.handleOnce('getSearchArgs', () => {
-      Log("getSearchArgs handler entered, returning author: " + author + " and title: " + title)
-      return [author, title]
+      Log("getSearchArgs handler entered, returning author: " + author + ", name: " + title + ", all: " + all)
+      return [author, title, all]
     })
 
     // Search NYT Cooking
@@ -907,7 +938,7 @@ async function authorSearch (author, title) {
 
   } else {
     Log("Reusing NYTCooking window and NYTCookingPage")
-    NYTCooking.webContents.send('set-title', [author, title]);
+    NYTCooking.webContents.send('set-name', [author, title]);
   }
 
   // Tell the renderer process to clear messages from any previous search
@@ -933,106 +964,103 @@ async function authorSearch (author, title) {
   //  target recipe
   do {
 
-      if (processingPage == 1) {
+    if (processingPage == 1) {
         
-          // On the first result page, get the id=pagination-count div,
-          //  which contains the text "1 - n of x results"
-          let pc = await NYTCookingPage.$('#pagination-count');
-          if (pc !== null) {
+      // On the first result page, get the id=pagination-count div,
+      //  which contains the text "1 - n of x results"
+      let pc = await NYTCookingPage.$('#pagination-count');
+      if (pc !== null) {
 
-              // If a pagination-count div exists, get its text, get n and x,
-              // and calculate x divided by n, rounded up - the number of
-              // results pages
-              pages = await pc.evaluate(el => {
-                  let pagCntText = el.innerText.split(' ');
-                  let perPage = pagCntText[2];
-                  let totResults = pagCntText[4].replace(',', '');
-                  return Math.ceil(totResults / perPage)
-              })
-          } else {
+        // If a pagination-count div exists, get its text, get n and x,
+        // and calculate x divided by n, rounded up - the number of
+        // results pages
+        pages = await pc.evaluate(el => {
+            let pagCntText = el.innerText.split(' ');
+            let perPage = pagCntText[2];
+            let totResults = pagCntText[4].replace(',', '');
+            return Math.ceil(totResults / perPage)
+        })
+      } else {
 
-            // If a pagination-count div does not exist, there's only 1 
-            //  results page
-              pages = 1;
-          }
-          Log("Results pages: " + pages.toString());
-          // console.log("page count: " + pages)
-          // console.log(pages.split(' '))
+        // If a pagination-count div does not exist, there's only 1 
+        //  results page
+          pages = 1;
       }
 
-      if (pages > 1) {
+      Log("Results pages: " + pages.toString());
+      // console.log("page count: " + pages)
+      // console.log(pages.split(' '))
+    }
 
-        // If there are multiple result pages, tell the renderer process
-        //  to display a progress bar
-        NYTCooking.webContents.send('progress-bar', [processingPage, pages]);
-      }
+    if (pages > 1) {
 
-      // On each search result page,  get the id=search-results div
-      let sr = await NYTCookingPage.$('#search-results')
+      // If there are multiple result pages, tell the renderer process
+      //  to display a progress bar
+      NYTCooking.webContents.send('progress-bar', [processingPage, pages]);
+    }
 
-      // Get the section within that div
-      let srSect = await sr.$('#search-results > section');
+    // On each search result page,  get the id=search-results div
+    let sr = await NYTCookingPage.$('#search-results')
 
-      // Get an array of <article> elements (recipes) in that section
-      let arrayOfArticleElements = await srSect.$$('article');
-      Log("Number of articles: " + arrayOfArticleElements.length.toString());
+    // Get the section within that div
+    let srSect = await sr.$('#search-results > section');
 
-      // Create an array of the names of the recipes on the search results page.
-      // The ith element of arrayOfRecipeNames is the recipe name from the ith
-      //  element of arrayOfArticleElements.
-      let arrayOfRecipeNames = [];
-      for (let i = 0; i < arrayOfArticleElements.length; i++) {
-          let txt = await NYTCookingPage.evaluate(el => {
+    // Get an array of <article> elements (recipes) in that section
+    let arrayOfArticleElements = await srSect.$$('article');
+    Log("Number of articles: " + arrayOfArticleElements.length.toString());
 
-              return el.querySelector('h3.name').innerText
-          }, arrayOfArticleElements[i] );
-          arrayOfRecipeNames.push(txt);
-      }
-      Log("Number of returned articles: " + arrayOfRecipeNames.length.toString())
+    // Create an array of the names of the recipes on the search results page.
+    // The ith element of arrayOfRecipeNames is the recipe name from the ith
+    //  element of arrayOfArticleElements.
+    let arrayOfRecipeNames = [];
+    for (let i = 0; i < arrayOfArticleElements.length; i++) {
+      let txt = await NYTCookingPage.evaluate(el => {
+          return el.querySelector('h3.name').innerText
+      }, arrayOfArticleElements[i] );
+      arrayOfRecipeNames.push(txt);
+    }
+    Log("Number of returned articles: " + arrayOfRecipeNames.length.toString())
 
-      // console.log('Recipe names:')
-      for (let a = 0; a < arrayOfRecipeNames.length; a++) {
-          // console.log(arrayOfRecipeNames[a]);
+    // console.log('Recipe names:')
+    for (let a = 0; a < arrayOfRecipeNames.length; a++) {
+      // console.log(arrayOfRecipeNames[a]);
+      // For each recipe on the search results page, compare its name to the
+      //  target recipe's name.  The comparison is done on the normalized
+      //  names of each.  Normalized names have no diacritical marks, 
+      //  have straight quotes and apostrophes, and have all letters lowercased.
+      // If an exact match is found, the recipe's article element is displayed.
+      // Otherwise, the recipe name is tested for a fuzzy match to the target
+      //  recipe.  A fuzzy match has two "interesting" words in common with the
+      //  target recipe's name.  "Interesting" words are foreign words, 
+      //  adjectives, nouns and past particples.
+      // If a fuzzy match is found, the recipe's article element is displayed
+      //  below any exact matches.
 
-          // For each recipe on the search results page, compare its name to the
-          //  target recipe's name.  The comparison is done on the normalized
-          //  names of each.  Normalized names have no diacritical marks, 
-          //  have straight quotes and apostrophes, and have all letters lowercased.
-          // If an exact match is found, the recipe's article element is displayed.
-          // Otherwise, the recipe name is tested for a fuzzy match to the target
-          //  recipe.  A fuzzy match has two "interesting" words in common with the
-          //  target recipe's name.  "Interesting" words are foreign words, 
-          //  adjectives, nouns and past particples.
-          // If a fuzzy match is found, the recipe's article element is displayed
-          //  below any exact matches.
+      // For recipe name comparisons, remove diacritical marks, 
+      //  straighten quotes and lower-case the name
+      lowerCaseRecipeName = normalizeRecipeName([arrayOfRecipeNames[a]])
 
-          // For recipe name comparisons, remove diacritical marks, 
-          //  straighten quotes and lower-case the name
-          lowerCaseRecipeName = normalizeRecipeName(arrayOfRecipeNames[a])
-
-          if (lowerCaseRecipeName == lowerCaseTargetRecipeName) {
-            // If the recipe name is an exact match, ...
-            console.log("Exact match: " + arrayOfRecipeNames[a]);
+      for (let n = 0; n < lowerCaseTargetRecipeName.length; n++) {
+        
+        //console.log("Comparing: " + lowerCaseRecipeName[0] + " to " + lowerCaseTargetRecipeName[n])
+        if (lowerCaseRecipeName[0] == lowerCaseTargetRecipeName[n]) {
+          // If the recipe name is an exact match, ...
+          console.log("Exact match: " + arrayOfRecipeNames[a]);
+          noResults = false;
+          // ... display the corresponding <article> element
+          await displayRecipe(arrayOfArticleElements[a], "exact", title[n]);
+        } else {
+          if (isFuzzy(lowerCaseRecipeName[0], interestingTargetRecipeNameWords[n])) {
+            // Else if the recipe name is an fuzzy match, ...
+            console.log("Fuzzy match: " + arrayOfRecipeNames[a]);
             noResults = false;
-
             // ... display the corresponding <article> element
-            await displayRecipe(arrayOfArticleElements[a], "exact");
-
-          } else {
-
-            if (isFuzzy(lowerCaseRecipeName)) {
-              // Else if the recipe name is an fuzzy match, ...
-              console.log("Fuzzy match: " + arrayOfRecipeNames[a]);
-              noResults = false;
-
-              // ... display the corresponding <article> element
-              await displayRecipe(arrayOfArticleElements[a], "fuzzy");
-            }
-
+            await displayRecipe(arrayOfArticleElements[a], "fuzzy", title[n]);
           }
-
+        }
       }
-      
+    }
+
       if (++processingPage <= pages) {
 
         // If there are more search results pages to be processed, go to the
@@ -1191,6 +1219,7 @@ async function mainline () {
     //  displays those recipes.  The function returns the articles displayed, which
     //  for testcase will always be 1.
     let articlesDisplayed = await findRecipes($, articleObj, mainWindow)
+    mainWindow.webContents.send('enable-searchButtons')
 
   });
 
@@ -1214,13 +1243,16 @@ async function mainline () {
   //  the recipe name 
   ipcMain.on('author-search', async (evt, args) => {
     console.log("author-search entered")
+    console.log("ipcMain.on('author-search': " + Array.isArray(args[1]))
 
     let author = args[0];
     let title = args[1]
+    let all = args[2]
     Log("Author: " + author);
     Log("Title: " + title);
+    Log("All: " + all)
 
-    await authorSearch(author, title);
+    await authorSearch(author, title, all);
 
   })
   
