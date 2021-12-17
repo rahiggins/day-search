@@ -20,6 +20,12 @@
 //    function articleOpen
 //    function recipeSearch
 //    function displayArticle
+//      articleA EventListener for click => elementClick
+//      articleA EventListener for contextmenu => articleOpen
+//      artTitleDiv.lastChild EventListener for click => recipeSearch
+//      artDiv.lastChild EventListener for click => elementClick
+//      recipeSearchDiv.lastChild EventListener for click => recipeSearch
+//      artDiv.lastChild EventListener for click => elementClick
 //    artDiv EventListener for click => elementClick
 //    artDiv EventListener for contextmenu => articleOpen
 //   ipcRenderer.on('enable-searchButtons)
@@ -215,8 +221,17 @@ ipcRenderer.on('article-display', (e, args) => {
     function recipeSearch (evt) {
         evt.preventDefault();
         //let title = evt.target.previousSibling.innerText;
+        let all = evt.target.dataset.all === 'true';
         let title = evt.target.dataset.title;
-        console.log("recipeSearch entered for " + title)
+        console.log("recipeSearch entered for all: " + all + " typeof all: " + typeof all )
+
+        if (all) {
+            title = JSON.parse(title)
+        } else {
+            title = [title]
+        }
+        console.log("recipeSearch - title isArray: " + Array.isArray(title));
+        console.log("recipeSearch entered for " + title);
         //let author = evt.target.parentNode.parentNode.parentNode.childNodes[1].innerText;
         let author = evt.target.dataset.author;
         console.log("Author: " + author)
@@ -230,7 +245,7 @@ ipcRenderer.on('article-display', (e, args) => {
         // Disable the Start button
         startButton.disabled = true;
 
-        ipcRenderer.send('author-search', [author, title])
+        ipcRenderer.send('author-search', [author, title, all])
     }
 
     function displayArticle(article, recipes, type) {
@@ -239,7 +254,8 @@ ipcRenderer.on('article-display', (e, args) => {
         console.log("  author: " + article.author)
         console.log("  href:" + article.link)
         console.log("article: " + JSON.stringify(article))
-        for (let r = 0; r < recipes.length; r++) {
+        let numRecipes = recipes.length;
+        for (let r = 0; r < numRecipes; r++) {
             console.log("   " + recipes[r])
         }
 
@@ -253,12 +269,36 @@ ipcRenderer.on('article-display', (e, args) => {
         artDiv.className = "ml-1";
 
         // Add an <a> element for the article
+
+        let artTitleDiv = document.createElement("div");
+        artTitleDiv.className = "float-left";
+
         let articleA = document.createElement("a");
+        articleA.className = "float-left";
         articleA.setAttribute('href', article.link);
         articleA.textContent = article.title;
         articleA.addEventListener("click", elementClick, false);
         articleA.addEventListener("contextmenu", articleOpen, false);
-        artDiv.appendChild(articleA);
+        artTitleDiv.appendChild(articleA);
+
+        if (numRecipes > 1) {
+            let searchAllButton = document.createElement("button");
+            searchAllButton.classList = "btn float-left btn-sm ml-2 disen"
+            searchAllButton.textContent = "Search All";
+            searchAllButton.dataset.title = JSON.stringify(recipes);
+            searchAllButton.dataset.author = article.author;
+            searchAllButton.dataset.all = true;
+            searchAllButton.disabled = true;    
+            artTitleDiv.appendChild(searchAllButton);
+            artTitleDiv.lastChild.addEventListener("click", recipeSearch, false);
+        }
+
+
+        artDiv.appendChild(artTitleDiv);
+
+        let clearDiv = document.createElement("div");
+        clearDiv.className = "clearDiv";
+        artDiv.appendChild(clearDiv);
 
         if (!article.link.includes("cooking.nytimes.com")) {
             // If the article does not link to cooking.nytimes.com,
@@ -302,6 +342,7 @@ ipcRenderer.on('article-display', (e, args) => {
                 searchButton.textContent = "Search";
                 searchButton.dataset.title = recipes[i];
                 searchButton.dataset.author = article.author;
+                searchButton.dataset.all = false;
                 searchButton.disabled = true;
                 recipeSearchDiv.appendChild(searchRecipe);
                 recipeSearchDiv.appendChild(searchButton);

@@ -1,3 +1,76 @@
+12/16/2021
+Add function to search NYT Cooking for all of an article's recipes in one search pass
+
+    NYTCooking.html
+
+        - Add stylesheet AppStyles.css
+
+        - Replace fixed display infrastructure with <div id="recipes"> 
+        	for dynamically added display infrastructure
+
+
+    AppStyles.css
+
+        - Add .recdiv styles
+
+
+    index.js
+
+        - Change Puppeteer page.goto waituntil parameter from networkidle0 to networkidle2
+
+        - Normalize indentation
+
+        - Close NYTCooking window when starting a new date search
+
+        - Add argument to NYTCooking.webContents.send('set-name') and ipcMain.handleOnce('getSearchArgs'):
+        	boolean indicating Search All button
+
+        - Change function authorSearch:
+        -- Add argument: index of recipe in recipe names array
+        -- Change function normalizeRecipeName to handle an array of recipe names, instead of only
+        	a single recipe name and to trim leading and trailing blanks from names
+        -- Add argument to function isFuzzy: array of interesting words in the target recipe name
+
+        - Change function displayRecipe:
+        -- Add arguments: target recipe name and index of recipe in recipe names array
+        -- Add arguments to NYTCooking.webContents.send('display-recipe'):
+        	target recipe name and index of recipe in recipe names array
+
+        - Change code that identifies interesting words to handle an array of recipe names, instead of 
+        	only a single recipe name
+
+        - Refactor search results loop
+
+        - On each search results page, compare each search result recipe to all target recipe names and
+        	display any exact or fuzzy matches
+
+
+
+    renderer.js
+
+        - When an article contains more than 1 recipe, display a Search All button next to the
+        	article name.  The button invokes the same recipeSearch function as the Search
+        	button next to recipe names.
+
+        - Add argument to ipcRenderer.send('author-search'): boolean indicating Search All button
+
+
+    NYTCooking-renderer.js
+
+        - Add documentation
+    
+        - Add code to handle an array of recipe names, instead of only a single recipe name.
+        -- Add <div> and <section> elements for each recipe
+        -- Display 'Exact matches' and 'Fuzzy matches' only when such a match is found
+        -- Change code for clearing prior displays of matches 
+    
+        - Changes to function displayRecipe:
+        -- Add argument: index of recipe in recipe names array
+        -- Add code to initialize a recipe's <div> and <section> elements when the first match
+        	is displayed
+
+
+
 11/09/2021
     
     index.js
