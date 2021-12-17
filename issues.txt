@@ -2,9 +2,5 @@
 The titleMatch processing in adjustTitle (lin.js) needs review.  The wild population of titles
  should be inventoried.
 
-To do: Instead of 'Search' buttons for each recipe, one 'Search' button for 
-    the article.  Look for all recipes on each cooking.nytimes.com search 
-    results page. Display matches separated by recipe name.
-
 To do: Define all ipcRenderer and clipboard calls in preload.js
     See https://www.electronjs.org/docs/latest/tutorial/context-isolation

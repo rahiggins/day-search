@@ -144,6 +144,8 @@ let parsedArticles = [];    // Array of urls of articles parsed
 let parseSkipped;           // Count of articles previously parsed, so skipped
 let articlesDisplayed;      // Count of articles displayed
 
+let waitUntil = "networkidle2"  // puppeteer goto waitUntil value
+
 // Function definitions
 
 function Log (text) {
@@ -275,7 +277,7 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
   await dayPage.bringToFront();
 
   // Go to the search results page
-  await dayPage.goto(url, {waitUntil: "networkidle0"});
+  await dayPage.goto(url, {waitUntil: waitUntil});
 
   // For section searches, see if the list of search results is empty (2/16/2000 - no 
   //   Food section).  If so, search the Style section instead.
@@ -322,7 +324,7 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
     }
 
     // Go to the Style section search results
-    await dayPage.goto(url, {waitUntil: "networkidle0"});
+    await dayPage.goto(url, {waitUntil: waitUntil});
   }
 
       // Unused -- the application connects to an existing instance of Chrome logged
@@ -507,7 +509,8 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
 
         // Go to an article page
         Log("Go to: " + articles[a].link);
-        await articlePage.goto(articles[a].link, {waitUntil: "networkidle0"});
+        await articlePage.goto(articles[a].link, {waitUntil: waitUntil});
+        Log("Back from: " + articles[a].link);
 
         // Get the article page's HTML and create a Cheerio query function for the HTML
         let articleHTML = await articlePage.content();
@@ -579,6 +582,14 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
   //  for articles containing recipes. Then search the day for certain keywords.
 
   Log("processDate entered with dateToSearch: " + dateToSearch);
+  
+  // If the NYTCooking window ID is not null, close the existing NYTCooking window
+  if (NYTCookingID !== null) {
+    Log("Closing existing NYTCooking window")
+    BrowserWindow.fromId(NYTCookingID).close();
+    NYTCookingID = null;
+    NYTCookingPage.close();
+  }
 
   // Initialize array of urls of articles parsed, which is used to skip parsing
   //  articles already parsed, and the count of articles displayed and parses skipped
@@ -762,6 +773,7 @@ async function authorSearch (author, title, all) {
     //  from the targetRecipeName?
     // Called from authorSearch
     // Input: name of recipe returned by NYT Cooking search
+    //        array of interesting words in the target recipe name
     // Output: boolean
 
     // Extract words from input recipe name
@@ -791,12 +803,13 @@ async function authorSearch (author, title, all) {
 
   }
 
-  async function displayRecipe(recipe, section, name) {
+  async function displayRecipe(recipe, section, name, index) {
     // Add a recipe <article> element to the designated section, exact or fuzzy
     // Called from authorSearch
     // Input:   <article> element,
     //          display section, "exact" ot "fuzzy"
     //          target recipe name
+    //          index of recipe name in recipe name array
 
     // Extract <article> element HTML
     let oH = await NYTCookingPage.evaluate(el => {
@@ -829,7 +842,7 @@ async function authorSearch (author, title, all) {
     }
 
     // Send <article> element HTML to the NYTCooking renderer process for display
-    NYTCooking.webContents.send('display-recipe', [$.html(), section, name]);
+    NYTCooking.webContents.send('display-recipe', [$.html(), section, name, index]);
 
   }
 
@@ -892,7 +905,7 @@ async function authorSearch (author, title, all) {
   }
   
   if (NYTCookingID == null) {
-    Log("Creating new NYTCooking and new NYTCookingPage")
+    Log("Creating new NYTCooking BrowserWindow and new NYTCookingPage")
 
     // Create a new browser window for dispalying filtered NYT Cooking search results
     NYTCooking = new BrowserWindow({
@@ -938,7 +951,7 @@ async function authorSearch (author, title, all) {
 
   } else {
     Log("Reusing NYTCooking window and NYTCookingPage")
-    NYTCooking.webContents.send('set-name', [author, title]);
+    NYTCooking.webContents.send('set-name', [author, title, all]);
   }
 
   // Tell the renderer process to clear messages from any previous search
@@ -958,7 +971,7 @@ async function authorSearch (author, title, all) {
   } else {
     cookingSearchPage = `https://cooking.nytimes.com/search?q=${encodeURIComponent(title)}`;
   }
-  await NYTCookingPage.goto(cookingSearchPage, {waitUntil: "networkidle0"});
+  await NYTCookingPage.goto(cookingSearchPage, {waitUntil: waitUntil});
 
   // For each search results page, look for exact and fuzzy matches for the
   //  target recipe
@@ -1048,14 +1061,14 @@ async function authorSearch (author, title, all) {
           console.log("Exact match: " + arrayOfRecipeNames[a]);
           noResults = false;
           // ... display the corresponding <article> element
-          await displayRecipe(arrayOfArticleElements[a], "exact", title[n]);
+          await displayRecipe(arrayOfArticleElements[a], "exact", title[n], n);
         } else {
           if (isFuzzy(lowerCaseRecipeName[0], interestingTargetRecipeNameWords[n])) {
             // Else if the recipe name is an fuzzy match, ...
             console.log("Fuzzy match: " + arrayOfRecipeNames[a]);
             noResults = false;
             // ... display the corresponding <article> element
-            await displayRecipe(arrayOfArticleElements[a], "fuzzy", title[n]);
+            await displayRecipe(arrayOfArticleElements[a], "fuzzy", title[n], n);
           }
         }
       }
@@ -1069,7 +1082,7 @@ async function authorSearch (author, title, all) {
         console.log("Going to search result page " + processingPageString)
         let nxt = '&page=' + processingPageString;
         try {
-            gotoResponse = await NYTCookingPage.goto(cookingSearchPage + nxt, {waitUntil: "networkidle0"});
+            gotoResponse = await NYTCookingPage.goto(cookingSearchPage + nxt, {waitUntil: waitUntil});
         } catch (e) {
             console.error("page.goto error:");
             console.error(e)

@@ -20,6 +20,12 @@
 //    function articleOpen
 //    function recipeSearch
 //    function displayArticle
+//      articleA EventListener for click => elementClick
+//      articleA EventListener for contextmenu => articleOpen
+//      artTitleDiv.lastChild EventListener for click => recipeSearch
+//      artDiv.lastChild EventListener for click => elementClick
+//      recipeSearchDiv.lastChild EventListener for click => recipeSearch
+//      artDiv.lastChild EventListener for click => elementClick
 //    artDiv EventListener for click => elementClick
 //    artDiv EventListener for contextmenu => articleOpen
 //   ipcRenderer.on('enable-searchButtons)
@@ -248,7 +254,8 @@ ipcRenderer.on('article-display', (e, args) => {
         console.log("  author: " + article.author)
         console.log("  href:" + article.link)
         console.log("article: " + JSON.stringify(article))
-        for (let r = 0; r < recipes.length; r++) {
+        let numRecipes = recipes.length;
+        for (let r = 0; r < numRecipes; r++) {
             console.log("   " + recipes[r])
         }
 
@@ -274,16 +281,18 @@ ipcRenderer.on('article-display', (e, args) => {
         articleA.addEventListener("contextmenu", articleOpen, false);
         artTitleDiv.appendChild(articleA);
 
-        let searchAllButton = document.createElement("button");
-        searchAllButton.classList = "btn float-left btn-sm ml-2 disen"
-        searchAllButton.textContent = "Search All";
-        searchAllButton.dataset.title = JSON.stringify(recipes);
-        searchAllButton.dataset.author = article.author;
-        searchAllButton.dataset.all = true;
-        searchAllButton.disabled = true;
+        if (numRecipes > 1) {
+            let searchAllButton = document.createElement("button");
+            searchAllButton.classList = "btn float-left btn-sm ml-2 disen"
+            searchAllButton.textContent = "Search All";
+            searchAllButton.dataset.title = JSON.stringify(recipes);
+            searchAllButton.dataset.author = article.author;
+            searchAllButton.dataset.all = true;
+            searchAllButton.disabled = true;    
+            artTitleDiv.appendChild(searchAllButton);
+            artTitleDiv.lastChild.addEventListener("click", recipeSearch, false);
+        }
 
-        artTitleDiv.appendChild(searchAllButton);
-        artTitleDiv.lastChild.addEventListener("click", recipeSearch, false);
 
         artDiv.appendChild(artTitleDiv);
 
