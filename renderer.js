@@ -10,12 +10,12 @@
 //    function addMsg
 //    function remvAllMsg
 // 
-//   ipcRenderer.on('display-spinner'
-//   ipcRenderer.on('progress-bar'
+//   window.electron.onDisplaySpinner
+//   window.electron.onProgressBar
 //    function addProgress
-//   ipcRenderer.on('keyword-div')
-//   ipcRenderer.on('process-end')
-//   ipcRenderer.on('article-display')
+//   window.electron.onKeywordDiv
+//   window.electron.onProcessEnd
+//   window.electron.onArticleDisplay
 //    function elementClick
 //    function articleOpen
 //    function recipeSearch
@@ -28,8 +28,8 @@
 //      artDiv.lastChild EventListener for click => elementClick
 //    artDiv EventListener for click => elementClick
 //    artDiv EventListener for contextmenu => articleOpen
-//   ipcRenderer.on('enable-searchButtons)
-//   ipcRenderer.on('captcha-detected')
+//   window.electron.onEnableSearchButtons
+//   window.electron.onCaptchaDetected
 //   
 //   function Mainline
 //    dateInput Eventlistener for input
@@ -39,9 +39,6 @@
 //    function processDate
 //    fileInput EventListener for change
 
-const { ipcRenderer } = require('electron'); // InterProcess Communications
-const { clipboard } = require('electron');  // System clipboard API
-
 let dateInput = document.getElementById('dateSpec');
 let fileInput = document.getElementById('fileSpec');
 let startButton = document.getElementById('startButton');
@@ -50,7 +47,7 @@ let orP = document.getElementById('orP');
 let dateForm = document.getElementById('dateForm');
 let fileForm = document.getElementById('fileForm');
 const mL = document.getElementById('msgs');     // messages list div
-const aL = document.getElementById('aList');     // messages list div
+const aL = document.getElementById('aList');    // articles list div
 
 let debug = true;
 
@@ -93,7 +90,9 @@ function remvAllMsg() {
     }
 }
 
-ipcRenderer.on('display-spinner', () => {
+window.electron.onDisplaySpinner( () => {
+    // Add a throbber to the page while this app clicks "More" buttons to get the full 
+    //  search results
     let loading = document.createElement("div");
     loading.classList = "loading float-left ml-2"
     loading.id = "spinner";
@@ -101,7 +100,7 @@ ipcRenderer.on('display-spinner', () => {
 })
 
 
-ipcRenderer.on('progress-bar', (e, args) => {
+window.electron.onProgressBar( (args) => {
     // Add or update a progress bar showing the articles searched
 
     function addProgress(now,max) {
@@ -111,7 +110,7 @@ ipcRenderer.on('progress-bar', (e, args) => {
         // return a <progress> element
     
         Log("addProgress arguments: " + now.toString() + ", " + max.toString())
-        ipcRenderer.send('mainAOT', true)
+        window.electron.send('mainAOT', true);
     
         let prog = document.createElement("progress");
         prog.id = "artProg";
@@ -136,7 +135,7 @@ ipcRenderer.on('progress-bar', (e, args) => {
         // Create a "Examining n ... articles" <p> element
         let progPara = document.createElement("p");
         progPara.classList = "pr-2 pt-2 float-left m-0 Pbar";
-        let txt = "Searching " + args[1] + " " + searchDomain + " articles for recipes…";
+        let txt = "Examining " + args[1] + " " + searchDomain + " articles for recipes…";
         let txnd = document.createTextNode(txt);
         progPara.appendChild(txnd);
 
@@ -144,44 +143,55 @@ ipcRenderer.on('progress-bar', (e, args) => {
         progDiv.appendChild(progPara);
         progDiv.appendChild(addProgress(curr,max));
 
-        // Add the float-left div to the messages div
-        mL.removeChild(mL.lastChild); 
+        // Remove the spinner
+        mL.removeChild(mL.lastChild);
+
+        // Add the float-left div containing the <progress> element to the messages div
         mL.appendChild(progDiv);
+
     } else {
         // Subsequently, replace the <progress> element
+
         let progDiv = document.getElementById('Pbar')
         progDiv.removeChild(progDiv.lastChild);       // Remove the <progress> element
         progDiv.appendChild(addProgress(curr,max));   // and add an updated one
     }
 })
 
-ipcRenderer.on('keyword-div', (e, args) => {
-    Log("keyword-div received: " + args[0])
-    // Remove the existing progress bar
+window.electron.onKeywordDiv( (arg) => {
+    // At the beginning of a keyword seach, add a divider identifying the keyword
+    Log("keyword-div received: " + arg);
+
+    // First, remove the existing progress bar, if it exists
     try {
         document.getElementById('Pbar').remove();
     } catch {
         mL.removeChild(mL.lastChild); 
         console.log("No progress-bar")
     }
-    // Add an keyword divider
+    // Then, add the divider
     let keywDiv = document.createElement("div");
     keywDiv.className = "keywDiv";
     let divDiv = document.createElement("div");
     divDiv.className = "keydiv divider text-left";
-    divDiv.setAttribute('data-content', args[0]);
+    divDiv.setAttribute('data-content', arg);
     keywDiv.appendChild(divDiv)
     aL.appendChild(keywDiv)
 
 })
 
-ipcRenderer.on('process-end', (e, args) => {
+window.electron.onProcessEnd( () => {
+    // At the end of processing a date, enable all  buttons
     Log("process-end received")
+    
+    // First, remove the progress bar
     document.getElementById('Pbar').remove();
+    
+    // Then, enable inputs
     startButton.disabled = false;
     dateInput.disabled = false;
 
-    // Enable all Search buttons
+    // And enable all Search buttons
     let searchButtons = document.getElementsByClassName("disen");
     for(let i = 0; i < searchButtons.length; i++) {
         searchButtons[i].disabled = false;
@@ -189,20 +199,27 @@ ipcRenderer.on('process-end', (e, args) => {
 
 })
 
-ipcRenderer.on('article-display', (e, args) => {
+window.electron.onArticleDisplay( (args) => {
+    // Display an article and its recipes
+    // Input:   articleObj,
+    //          article recipes,
+    //          article type
 
     function elementClick (evt) {
-        // Click event handler for recipes (<article> elements)
-        //  Form link element for recipe and write to clipboard
+        // Click event handler for elements
+        //  <a> - article title or recipe name
+        //  <small> and <div> - list of recipe names
+        //  <p> - author
+        // Write element HTML to clipboard
         Log("Element clicked");
         evt.preventDefault();
         console.log("Element: " + evt.target.tagName);
         if (evt.target.tagName == "A" || evt.target.tagName == "SMALL") {
-            clipboard.writeHTML(evt.target.outerHTML);
+            window.electron.clipboardWriteHTML(evt.target.outerHTML);
         } else if (evt.target.tagName == "P" ) {
-            clipboard.writeText(evt.target.innerText);
+            window.electron.clipboardWriteText(evt.target.innerText);
         } else if (evt.target.tagName == "DIV" ) {
-            clipboard.writeHTML(evt.target.firstChild.outerHTML);
+            window.electron.clipboardWriteHTML(evt.target.firstChild.outerHTML);
         } else {
             console.log("Element not recognized")
         }
@@ -211,30 +228,40 @@ ipcRenderer.on('article-display', (e, args) => {
     async function articleOpen (evt) {
         // ContextMenu event handler for article <a> elements
         //  IPC send to open article in Chrome
+
         evt.preventDefault();
         let href = evt.target.href;
-        console.log("Opened article: " + evt.target.innerText);
-        console.log(href);
-        ipcRenderer.send('article-open', 'open', href);
+        // Validate URL - open only nytimes.com URLs
+        let url = new URL(href);
+        if (url.hostname.endsWith('nytimes.com')) {
+            console.log("Opened article: " + evt.target.innerText);
+            console.log(href);
+            window.electron.send('article-open', href);
+        } else {
+            window.electron.send("dialog-error", 
+                ['Invalid URL', 'The hostname of \n\n' + href + '\n\n does not end with nytimes.com'])
+         }
     }
 
     function recipeSearch (evt) {
+        // Click event handler for recipe search buttons
+        // Input: Click event object
+
         evt.preventDefault();
-        //let title = evt.target.previousSibling.innerText;
+        Log("recipeSearch entered");
         let all = evt.target.dataset.all === 'true';
         let title = evt.target.dataset.title;
-        console.log("recipeSearch entered for all: " + all + " typeof all: " + typeof all )
 
+        // Ensure 'title' is an array
         if (all) {
-            title = JSON.parse(title)
+            title = JSON.parse(title);
         } else {
-            title = [title]
+            title = [title];
         }
-        console.log("recipeSearch - title isArray: " + Array.isArray(title));
-        console.log("recipeSearch entered for " + title);
-        //let author = evt.target.parentNode.parentNode.parentNode.childNodes[1].innerText;
+
         let author = evt.target.dataset.author;
-        console.log("Author: " + author)
+
+        Log("Search arguments -  All: " + all + "\nTitle(s) " + title + "\nAuthor: " + author);
 
         // Disable all Search buttons
         let searchButtons = document.getElementsByClassName("disen");
@@ -245,18 +272,21 @@ ipcRenderer.on('article-display', (e, args) => {
         // Disable the Start button
         startButton.disabled = true;
 
-        ipcRenderer.send('author-search', [author, title, all])
+        // Tell main process to search NYTCooking 
+        window.electron.send('author-search', [author, title, all])
     }
 
     function displayArticle(article, recipes, type) {
-        console.log("Display article and recipes:");
-        console.log("  title; " + article.title)
-        console.log("  author: " + article.author)
-        console.log("  href:" + article.link)
-        console.log("article: " + JSON.stringify(article))
+        // Append the elements of an article display to the browserWindow
+
+        Log("Display article and recipes:");
+        Log("  title; " + article.title)
+        Log("  author: " + article.author)
+        Log("  href:" + article.link)
+        Log("article: " + JSON.stringify(article))
         let numRecipes = recipes.length;
         for (let r = 0; r < numRecipes; r++) {
-            console.log("   " + recipes[r])
+            Log("   " + recipes[r])
         }
 
         // Add an 'Article' divider
@@ -265,14 +295,15 @@ ipcRenderer.on('article-display', (e, args) => {
         divDiv.setAttribute('data-content', type);
         aL.appendChild(divDiv)
 
+        // Create a <div> element for the article display
         let artDiv = document.createElement("div");
         artDiv.className = "ml-1";
 
-        // Add an <a> element for the article
-
+        // Create a <div> element for the article title
         let artTitleDiv = document.createElement("div");
         artTitleDiv.className = "float-left";
 
+        // Add an <a> element for the article to the article title <div>
         let articleA = document.createElement("a");
         articleA.className = "float-left";
         articleA.setAttribute('href', article.link);
@@ -282,61 +313,85 @@ ipcRenderer.on('article-display', (e, args) => {
         artTitleDiv.appendChild(articleA);
 
         if (numRecipes > 1) {
+            // If there is more than 1 recipe, add a Search All button to the article title <div>
             let searchAllButton = document.createElement("button");
             searchAllButton.classList = "btn float-left btn-sm ml-2 disen"
             searchAllButton.textContent = "Search All";
+
+            // Add data describing the recipes to be searched to the button
             searchAllButton.dataset.title = JSON.stringify(recipes);
             searchAllButton.dataset.author = article.author;
             searchAllButton.dataset.all = true;
-            searchAllButton.disabled = true;    
+
+            // Disable the button
+            searchAllButton.disabled = true;
+            
+            // Append the button to the page and establish a click listener
             artTitleDiv.appendChild(searchAllButton);
             artTitleDiv.lastChild.addEventListener("click", recipeSearch, false);
         }
 
 
+        // Append the article title <div> to the article display <div>
         artDiv.appendChild(artTitleDiv);
 
+        // Append a <div> element to clear the previous float-left
         let clearDiv = document.createElement("div");
         clearDiv.className = "clearDiv";
         artDiv.appendChild(clearDiv);
 
         if (!article.link.includes("cooking.nytimes.com")) {
             // If the article does not link to cooking.nytimes.com,
-            //  add author and recipes elements
+            //  append author and recipes elements to the article display <div>
 
+            // Create a <p> element for the author, append it to the article display <div> and
+            //  listen for click on it
             let Author = document.createElement("p");
             Author.className = "mb-0"
             Author.textContent = article.author;
             artDiv.appendChild(Author);
             artDiv.lastChild.addEventListener("click", elementClick, false);
 
+            // Create a <div> for the recipe list
             let recipesDiv = document.createElement("div");
             recipesDiv.className = "bg-secondary columns col-9 ml-0 mb-2 mt-1"
+
+            // Create a <small> element
             let Recipes = document.createElement("small");
+
+            // Create a recipe search <div> element
             let recipesSearchDiv = document.createElement("div");
 
-            let clearDiv = document.createElement("div");
-            clearDiv.className = "clearDiv";
-
-            console.log("Number of recipes: " + recipes.length.toString());
+            Log("Number of recipes: " + recipes.length.toString());
             for (let i = 0; i < recipes.length; i++) {
-                console.log("Recipe: " + i.toString());
+                // For each recipe ...
+                Log("Recipe: " + i.toString());
+
+                //  ... skip those with no name 
                 if (recipes[i] == "Recipe Name not found") {
                     Log("Name not found skipped");
                     continue;
                 }
+
+                // Append the recipe name to the <small> element; append a <br> element if
+                //  there are more recipes
                 Recipes.appendChild(document.createTextNode(recipes[i]))
                 if (i < recipes.length-1) {
-                    console.log("Add linbreak: " + i.toString())
+                    Log("Add linbreak: " + i.toString())
                     let linebreak = document.createElement("br");
                     Recipes.appendChild(linebreak);
                 }
+
+                // Create a recipe name <div> element
                 let recipeSearchDiv = document.createElement("div");
                 recipeSearchDiv.className = "float-left mb-1";
+
+                // Create a recipe name <p> element and append the recipe name to it
                 let searchRecipe = document.createElement("p");
                 searchRecipe.classList = "float-left mb-0 srchArt"
                 searchRecipe.textContent = recipes[i];
 
+                // Create a search <button> element
                 let searchButton = document.createElement("button");
                 searchButton.classList = "btn float-left btn-sm ml-2 disen"
                 searchButton.textContent = "Search";
@@ -344,35 +399,55 @@ ipcRenderer.on('article-display', (e, args) => {
                 searchButton.dataset.author = article.author;
                 searchButton.dataset.all = false;
                 searchButton.disabled = true;
+
+                // Append the recipe name <p> element to the recipe name <div> element
                 recipeSearchDiv.appendChild(searchRecipe);
+
+                // Append the search <button> element to the recipe name <div> element and
+                //  listen for click on the search <button> element 
                 recipeSearchDiv.appendChild(searchButton);
                 recipeSearchDiv.lastChild.addEventListener("click", recipeSearch, false);
+
+                // Append the recipe name <div> element to the recipe search <div> element
                 recipesSearchDiv.appendChild(recipeSearchDiv);
+
+                // Create a <div> element to clear the previous float-left and append it to
+                //  the recipe search <div> element
                 let clearDiv = document.createElement("div");
                 clearDiv.className = "clearDiv";
                 recipesSearchDiv.appendChild(clearDiv);
             }
+
+            // Append the <small> element to the recipes list <div>
             recipesDiv.appendChild(Recipes)
+
+            // Append the recipes list <div> to the article display <div> and listen 
+            //  for click on the recipes list <div>
             artDiv.appendChild(recipesDiv)
             artDiv.lastChild.addEventListener("click", elementClick, false);
 
+            // Append the recipe search <div> to the article display <div>
             artDiv.appendChild(recipesSearchDiv);
         }
 
+        // Append the article display <div> to the articles list <div>
         aL.appendChild(artDiv)
 
     }
 
-    let article = JSON.parse(args[0]);
-    author = article.author;
-    let recipes = args[1];
-    let type = args[2];
+    // Parse args
+    let [article, recipes, type] = args
+
+    // Convert article to array
+    article = JSON.parse(article);
+
+    // Display the article and its recipes 
     displayArticle( article, recipes, type );
 
 })
 
 //Enable searchButtons on completion of index.js function authorSearch
-ipcRenderer.on('enable-searchButtons', (e, args) => {
+window.electron.onEnableSearchButtons( () => {
     Log("enable-searchButtons received")
 
     // Enable all Search buttons
@@ -389,7 +464,7 @@ ipcRenderer.on('enable-searchButtons', (e, args) => {
 
 // On captcha detected, add a message and a button whose click indicates that the 
 //  captcha was solved
-ipcRenderer.on('captcha-detected', (e, args) => {
+window.electron.onCaptchaDetected( () => {
     Log("captcha-detected received")
 
     // Create a <p> element
@@ -419,7 +494,7 @@ ipcRenderer.on('captcha-detected', (e, args) => {
         Log("Captcha solved button clicked")
 
         // Tell main process that the captcha has been solved
-        ipcRenderer.send('captcha-solved')
+        window.electron.send('captcha-solved')
 
         // Remove the captcha detected mesage and the Solved button
         captchaP.remove()
@@ -430,37 +505,70 @@ ipcRenderer.on('captcha-detected', (e, args) => {
 
 // Mainline function
 async function Mainline() {
-    console.log("Entered Mainline");
+    Log("Entered Mainline");
 
-    // Ask main process for the last searched date set the input date picker 
-    //  to that date
-    let lastDate = await ipcRenderer.invoke('getLastDate');
-    Log("lastDate: " + lastDate);
-    dateInput.value = lastDate;
+    function valDate(date) {
+        // Validate that the date is a Sunday or a Wednesday;
+        //  Disable the start button if the day is not valid and return -1, else
+        //  enable the start button and return 0
+        Log("valDate: " + date)
 
-    // Listen for input event in the date picker
-    dateInput.addEventListener('input', validateDate);
-
-    function validateDate(e) {
-        Log("validateDate entered")
-        let day = new Date( e.target.value ).getUTCDay();
+        let day = new Date( date ).getUTCDay();
         Log("Day (0-6) selected: " + day.toString())
         if (![0, 3].includes(day)) {
+            Log("date is invalid");
+            startButton.disabled = true;
+            return -1
+        } else {
+            Log("date is valid");
+            startButton.disabled = false;
+            return 0
+        }
+
+    }
+
+    function validateDate(e) {
+        // dateInput handler for 'input' and 'change' events - 
+        //  Calls function valDate to determine that the selected date is 
+        //   a Sunday (0) or a Wednesday (3)
+        //  valDate disables or enables the Start button and returns 0 (valid date) or
+        //   -1 (invalid date)
+        //  Remove or add class is-error from/to the dateInput element if the date is
+        //   valid/invalid
+        Log("validateDate entered")
+        if (valDate(e.target.value) < 0) {
+            // Not valid, add class is-error to input element
             e.target.classList.add("is-error");
         } else {
+            // Valid, remove class is-error from input element
             e.target.classList.remove("is-error");
         }
     }
+
+    // Ask main process for the last searched date; set the input date picker 
+    //  to that date
+    let lastDate = await window.electron.getLastDate();
+    Log("lastDate: " + lastDate);
+    dateInput.value = lastDate;
+
+    // Validate input date: Sunday or Wednesday
+    if (valDate(lastDate) < 0) {
+        // Not valid, add class is-error to input element
+        dateInput.classList.add("is-error");
+    } else {
+        // Valid, remove class is-error from input element
+        dateInput.classList.remove("is-error");        
+    }
+
+    // Listen for input event in the date picker
+    dateInput.addEventListener('input', validateDate);
+    dateInput.addEventListener('change', validateDate);
     
     // Listen for a click of the Start button, then call function processDate 
     startButton.addEventListener('click', processDate)
 
-    // When the date is changed, enable the Start button
-    dateInput.addEventListener("change", () => {
-        startButton.disabled = false;
-    }, false);
-
     async function processDate() {
+        // Process a date
 
         // Disable the Start button
         startButton.disabled = true;
@@ -481,22 +589,12 @@ async function Mainline() {
         // Set displayed URLs to empty
         displayedURLs = [];
 
-        //let pages = await browser.pages();
-        //console.log("Pages: " + pages.length.toString())
-        //for (let j = 2; j < pages.length; j++) {
-        //    await pages[j].close()
-        //} 
-
         // Get the selected date (yyyy-mm-dd)
         let dateToSearch = dateInput.value;
         let switchValue = writeSwitch.checked;
 
-        // Send the date to search to the main process
-        //ipcRenderer.send('process-date', dateToSearch);
-        ipcRenderer.send('process-date', [dateToSearch, switchValue])
-
-        // Tell the main process to record the last searched date
-        //ipcRenderer.send('new-date', dateToSearch);
+        // Send the date to process and the testcase switch value to the main process
+        window.electron.send('process-date', [dateToSearch, switchValue])
 
     }
 
@@ -506,7 +604,7 @@ async function Mainline() {
         dateForm.remove();
         orP.remove();
         let hrefFile = fileInput.files[0].path.replace("html", "txt")
-        ipcRenderer.send('process-file', 
+        window.electron.send('process-file', 
             [fileInput.files[0].path,
              hrefFile
             ]
@@ -515,4 +613,5 @@ async function Mainline() {
 
 }
 
-Mainline(); // Launch puppeteer and add event listener for Start button
+// Initialize browserWindow and set event listeners
+Mainline();

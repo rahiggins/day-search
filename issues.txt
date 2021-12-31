@@ -2,5 +2,9 @@
 The titleMatch processing in adjustTitle (lin.js) needs review.  The wild population of titles
  should be inventoried.
 
-To do: Define all ipcRenderer and clipboard calls in preload.js
-    See https://www.electronjs.org/docs/latest/tutorial/context-isolation
+For fuzzy matches, verify that the target author is included and all or most nouns are present
+
+For exact matches, verify that Featured Article matches
+
+In renderer.js function displayArticle recipes loop, can Spectre.css column classes replace 
+ float-left and {clear: left} divs?

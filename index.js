@@ -108,9 +108,23 @@
 //      calls isFuzzy
 //      calls displayRecipe
 
+// Data structures
+//
+// articleObj
+//  {
+//    title: <string>
+//    isBeverage: <boolean>
+//    isPairing: <boolean>
+//    isRecipe: <boolean>
+//    beverageType: <string>
+//    author: <string>
+//    link: <URL> 
+//  }
+
 // Modules used here
-const {app, BrowserWindow} = require('electron')
-const { ipcMain } = require('electron')
+const {app, BrowserWindow, dialog} = require('electron');
+const { ipcMain } = require('electron');
+const path = require('path');
 const fs = require('fs'); // Filesystem functions
 const { exec } = require('child_process');
 const needle = require('needle'); // HTTP client
@@ -120,6 +134,7 @@ const pos = require('pos');  // Part Of Speech classification
 
 // Get path to application data and set set paths to lastDate and testcase
 const appPath = app.getPath('appData') + "/" + app.name + '/';
+console.log("appPath: " + appPath)
 const lastDateFile = appPath + 'LastDate.txt';  // Last date processed
 const testcase = appPath + 'testcase/'; // Folder containing testcase data
 
@@ -366,7 +381,7 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
 
   // Tell the renderer process to display a spinner while expanding the 
   //  search results
-  mainWindow.webContents.send('display-spinner')
+  mainWindow.webContents.send('display-spinner');
 
   // Look for 'Show More' button and if found, click it 
   do {
@@ -577,7 +592,7 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
 
 
 
-  async function processDate (dateToSearch) {
+async function processDate (dateToSearch) {
   // Search a date (Sunday: Magazine section or Wednesday: Food Section)
   //  for articles containing recipes. Then search the day for certain keywords.
 
@@ -650,7 +665,7 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
     // For each keyword,
 
     // Display a horizontal divider for the keyword
-    mainWindow.webContents.send('keyword-div', [keywords[k]])
+    mainWindow.webContents.send('keyword-div', keywords[k])
 
     // Form the search URL specifying the day and the keyword
     let url = `https://www.nytimes.com/search?dropmab=true&endDate=${urlDateToSearch}&query=${keywords[k]}&sort=best&startDate=${urlDateToSearch}`
@@ -915,8 +930,7 @@ async function authorSearch (author, title, all) {
       height: 600,
       alwaysOnTop: true,
       webPreferences: {
-        nodeIntegration: true,
-        contextIsolation: false
+        preload: path.join(__dirname, 'NYTC-preload.js')
       }
     })
 
@@ -1103,6 +1117,7 @@ async function authorSearch (author, title, all) {
   if (noResults) {
 
     // If no filtered results, send that to the NYTCooking process
+    console.log("index.js - typeof noResultsReason: " + typeof noResultsReason)
     NYTCooking.webContents.send('no-results', noResultsReason);
   } else {
 
@@ -1152,8 +1167,7 @@ async function mainline () {
       height: 600,
       alwaysOnTop: true,
       webPreferences: {
-        nodeIntegration: true,
-        contextIsolation: false
+        preload: path.join(__dirname, 'preload.js')
       }
     })
 
@@ -1177,7 +1191,13 @@ async function mainline () {
 
   // Return last date searched to renderer process
   ipcMain.handle('getLastDate', () => {
-    lastStoredDate = fs.readFileSync(lastDateFile, "utf8");
+    try{
+      lastStoredDate = fs.readFileSync(lastDateFile, "utf8");
+    } catch {
+      let today = new Date();
+      lastStoredDate = today.getFullYear() + '-' + today.getMonth() + '-' + today.getDate()
+    }
+    
     return lastStoredDate;
   })
 
@@ -1283,7 +1303,7 @@ async function mainline () {
 
   // Listen for click on an article in the mainWindow; open the article in 
   //  Google Chrome
-  ipcMain.on('article-open', (event, action, url) => {
+  ipcMain.on('article-open', (event, url) => {
     console.log("Recipe opened: " + url);
     exec('open -a "Google Chrome" ' + url, (error, stdout, stderr) => {
       if (error) {
@@ -1299,6 +1319,11 @@ async function mainline () {
       console.log(`stdout:\n${stdout}`);
     });
   });
+
+  ipcMain.on('dialog-error', (event,args) => {
+    let [title, content] = args
+    dialog.showErrorBox(title, content)
+  })
   
 
   // This method will be called when Electron has finished
