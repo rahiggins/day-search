@@ -66,10 +66,6 @@
 //          <p>                     only if <article> element is appended to <section>
 //          <section>
 
-const { ipcRenderer } = require('electron'); // InterProcess Communications
-const { clipboard } = require('electron');  // System clipboard API
-//const fs = require('fs'); // Filesystem functions
-
 // Define variables for NYTCooking.html elements
 const recipesDiv = document.getElementById("recipes");
 const authorP = document.getElementById("author");
@@ -77,6 +73,7 @@ const clearButton = document.getElementById("clearButton");
 const stopButton = document.getElementById("stopButton");
 const closeButton = document.getElementById("closeButton");
 const mL = document.getElementById('msgs');
+const debug = true;
 
 // Define arrays of display infrastructure elements
 let sectDivs;                           // Array of <div> elements that contain <section> elements
@@ -87,9 +84,16 @@ let fuzzySectionIsNotInitialized = [];  // Array of booleans
 
 // Function definiitions
 
+function Log (text) {
+    // If debugging, write text to console.log
+    if (debug) {
+        console.log(text)
+    }
+  }
+  
 function addProgress(now,max) {
     // Add/update a progress bar
-    // Called from searchClick
+    // Called from window.NYTC.onProgressBar
     // Input:   now - number of articles retrieved
     //          max - number of articles to be retrieved
     // return a progress bar element
@@ -102,9 +106,9 @@ function addProgress(now,max) {
     return prog;
 }
 
-async function displayRecipe(evt, args) {
+async function displayRecipe(args) {
     // Add a matching recipe <article> element to the designated section, exact or fuzzy
-    // Called from searchClick
+    // Called from window.NYTC.onDisplayRecipe
     // Input:   <article> element HTML,
     //          match type, "exact" ot "fuzzy"
     //          target recipe name
@@ -215,7 +219,7 @@ async function stopClick (evt) {
         mL.removeChild(mL.lastChild);
     }
     stopButton.disabled = true;
-    ipcRenderer.send("stop-NYTCooking")
+    window.NYTC.send('stop-NYTCooking')
 }
 
 async function closeClick (evt) {
@@ -223,9 +227,7 @@ async function closeClick (evt) {
     //  Send close request to main process.
     console.log("Close clicked");
     evt.preventDefault();
-    //let html = document.documentElement.outerHTML;
-    //fs.writeFileSync('/Users/rahiggins/Library/Application Support/day-search' + '/div-problem.html', html, "utf8");
-    ipcRenderer.send("close-NYTCooking")
+    window.NYTC.send('close-NYTCooking')
 }
 
 async function articleClick (evt) {
@@ -241,7 +243,7 @@ async function articleClick (evt) {
     let recipeLink = '<a href="https://cooking.nytimes.com' + parent.dataset.url;
     recipeLink += '">' + name[0] + '</a>';
     console.log(recipeLink);
-    clipboard.writeHTML(recipeLink);
+    window.NYTC.clipboardWriteHTML(recipeLink);
 
 }
 
@@ -258,7 +260,7 @@ async function articleOpen (evt) {
     let recipeURL = "https://cooking.nytimes.com" + parent.dataset.url
     console.log("Opened recipe: " + name[0]);
     console.log(recipeURL);
-    ipcRenderer.send('article-open', 'open', recipeURL);
+    window.NYTC.send('article-open', recipeURL);
 }
 
 // Mainline function
@@ -386,7 +388,7 @@ async function Mainline() {
     closeButton.addEventListener("click", closeClick, false);
 
     // Get search arguments: author, name(s) of recipe(s), multiple recipe indicator
-    let searchArgs = await ipcRenderer.invoke('getSearchArgs');
+    let searchArgs = await window.NYTC.getSearchArgs();
     console.log("Got searchArgs: " + searchArgs);
     let [author, recipeNames, multipleRecipes] = searchArgs;
     console.log("author: " + author);
@@ -397,7 +399,12 @@ async function Mainline() {
     newRecipeDisplay(author, recipeNames, multipleRecipes);
 
     // Listen for 'set-name' directive
-    ipcRenderer.on("set-name", (evt, searchArgs) => {
+    window.NYTC.onSetName( (searchArgs) => {
+        // Set search arguments and display them
+        // Input:   author
+        //          array of recipe names
+        //          boolean indicating multiple recipes
+
         console.log("Set searchArgs: " + searchArgs);
         let [author, recipeNames, multipleRecipes] = searchArgs;
         console.log("author: " + author);
@@ -410,7 +417,7 @@ async function Mainline() {
     })
 
     // Listen for 'progress-bar' update
-    ipcRenderer.on('progress-bar', (evt, args) => {
+    window.NYTC.onProgressBar( (args) => {
         // Input: - number of page being processed
         //        - total number of pages
 
@@ -434,7 +441,7 @@ async function Mainline() {
     })
 
     // Listen for 'no-results' signal
-    ipcRenderer.on('no-results', (evt, arg) => {
+    window.NYTC.onNoResults( (arg) => {
         // Remove messages, including progress-bar
         while (mL.firstChild) {
             mL.removeChild(mL.firstChild);
@@ -450,7 +457,7 @@ async function Mainline() {
     })
 
     // Listen for 'clear-messages' directive
-    ipcRenderer.on('clear-messages', (evt, arg) => {
+    window.NYTC.onClearMessages( () => {
         // Remove messages, including progress-bar
         while (mL.firstChild) {
             mL.removeChild(mL.firstChild);
@@ -458,7 +465,15 @@ async function Mainline() {
     })
 
     // Listen for 'display-recipe' directive
-    ipcRenderer.on('display-recipe', displayRecipe)
+    window.NYTC.onDisplayRecipe( (args) => {
+        // Display recipe cards        
+        // Input:   <article> element HTML,
+        //          match type, "exact" ot "fuzzy"
+        //          target recipe name
+        //          index of target recipe name in array of recipe names
+
+        displayRecipe(args)
+    })
     
 }
 
