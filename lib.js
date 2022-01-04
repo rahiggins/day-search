@@ -89,6 +89,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
   // For each recipe marker, indicated by an element of arr[],
   //  find the recipe name
   for (j = 0; j < arr.length; j++) {
+    Log("Recipe marker " + j.toString())
 
     recipeName = "Recipe Name not found";
 
@@ -107,19 +108,45 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     for (let i = arr[j]-1; i > -1; i--) {
       
       // Get text of each <p> element
-      let t = $(paras[i]).text();
+      let paraText = $(paras[i]).text();
 
-      // Characterize the text - para returns an object containing various attributes
-      let p = para(t);
-      Log(t.substr(0,15) + " " + p.words + " " + p.isNum + " " + p.isInstr + " " + p.isYield + " " + p.colon + " " + p.allCAPS + " " + p.ad + " " + p.adapted + " " + p.punct + " " + p.time);
+      // Occasionally, the paragraph preceding the recipe name ends with
+      //  the author name, preventing terminal puncuation from being detected.
+      // Remove the author name, if it exists.
+      // 
+      // Create a RegExp to match (case-insensitive) the author name at the end
+      //  of the paragraph text and capture the text preceding the name.
+      let rx = new RegExp('(.*)' + articleObj.author + '$', 'i');
+
+      // Look for a match
+      let m = paraText.match(rx);
+
+      // If there is a match, ...
+      if (m != null) {
+
+          // ... set the paragraph text to the capture group
+          paraText = m[1]
+          console.log('Author name removed from <p> element');
+
+      }
+
+      // Trimmed the paragraph text and call function para to characterize it -
+      //  para returns an object containing various attributes
+      paraText = paraText.trim()
+      let p = para(paraText);
+      Log("Paragraph " + i.toString() + " text: " + paraText.substr(0,40));
+      Log(" words: " + p.words + ", isNum: " + p.isNum + ", isInstr: " + p.isInstr);
+      Log(" isYield: " + p.isYield + ", colon: " + p.colon + ", allCAPS: " + p.allCAPS);
+      Log(" ad: " + p.ad + ", adapted: " + p.adapted + ", punct: " + p.punct);
+      Log(" time: " + p.time)
 
       // All uppercase is a recipe name
       if (p.allCAPS) {
           Log("allCAPS");
-          Log(t)
+          Log(paraText)
 
           // If the <p> element consists of RECIPES…
-          if (t == "RECIPES") {
+          if (paraText == "RECIPES") {
             
             // …the recipe name is the previously accumulated recipe name
             recipeName = accumRecipeName
@@ -131,7 +158,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
             
             // otherwise accumulate the <p> element's text and continue with the 
             //  next <p> element
-            accumRecipeName = t + " " + accumRecipeName;
+            accumRecipeName = paraText + " " + accumRecipeName;
             continue
           }
       }
@@ -210,7 +237,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
         // then prepend this <p> element to accumRecipeName and
         //  continue with the next <p> element
         Log("numFound so para concatenated");
-        accumRecipeName = t + " " + accumRecipeName;
+        accumRecipeName = paraText + " " + accumRecipeName;
       }
 
     }
@@ -290,7 +317,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
 
   
 function para(text) {
-  // Return an object describing paragraph text:
+  // Return an object describing the input paragraph text:
   //  words: the number of words in the paragraph
   //  isNum: true if the first character of the paragraph is a numeral
   //  isInstr: true if the paragraph starts with numerals followed by a period
@@ -304,19 +331,19 @@ function para(text) {
   //          exclamation point, apostrophe, quote or right parenthesis.
   //  time: true if the paragraph includes "total time:" (case-insensitive)
 
-  let trimmedText = text.trim()
-  let words = trimmedText.split(/\s+/g); // Split text by whitespace characters
+  let words = text.split(/\s+/g); // Split text by whitespace characters
+  
   return {
       words: words.length,
-      isNum: Number.isInteger(parseInt(trimmedText.substr(0,1))),
-      isInstr: trimmedText.search(/^\d+\./) > -1,
+      isNum: Number.isInteger(parseInt(text.substr(0,1))),
+      isInstr: text.search(/^\d+\./) > -1,
       isYield: words[0] === "Yield:",
-      colon: (words[0].endsWith(":") && !words[0].startsWith("Yield")) || trimmedText.endsWith(":"),
-      allCAPS: trimmedText === trimmedText.toUpperCase(),
+      colon: (words[0].endsWith(":") && !words[0].startsWith("Yield")) || text.endsWith(":"),
+      allCAPS: text === text.toUpperCase(),
       ad: words[0] === "Advertisement",
       adapted: words[0].search(/Adapted/i) > -1,
-      punct: trimmedText.match(/[\.\?!\"\')]$/) != null,
-      time: trimmedText.toLowerCase().includes('total time:')
+      punct: text.match(/[\.\?!\"\')]$/) != null,
+      time: text.toLowerCase().includes('total time:')
 
   }
   
