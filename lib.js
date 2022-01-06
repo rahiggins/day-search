@@ -82,6 +82,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
   Log(" isBeverage: " + articleObj.isBeverage);
   Log(" beverageType: " + articleObj.beverageType)
   Log(" cookingWithTheTimes: " + articleObj.cookingWithTheTimes)
+  Log(" Author: " + articleObj.author);
     
   let recipeNameArray = [];
   let recipeNameIsArticleTitle = false;
@@ -194,10 +195,24 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
         continue
       }
 
-      // Skip certain <p> elements (e.g. Note:, Advertisement)
-      if (p.colon || p.ad) {
-        Log("Skipped - colon or ad");
+      // Skip Advertisement <p> elements
+      if (p.ad) {
+        Log("Skipped - ad");
         continue
+      }
+
+      // Skip certain <p> elements containing colons (e.g. Note:, etc), but
+      //  if the colon appears in 'recipe:' at the beginning of the <p> element,
+      //  jsut remove 'recipe:'
+      if (p.colon) {
+        let recipeMatch = paraText.match(/^recipe:\s*(.*)$/i)
+        if (recipeMatch != null) {
+          paraText = recipeMatch[1];
+          console.log('recipeParse: "recipe:" removed ')
+        } else {
+        Log("Skipped - colon");
+        continue
+        }
       }
 
       // Finally ...

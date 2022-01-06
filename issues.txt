@@ -8,3 +8,6 @@ For exact matches, verify that Featured Article matches
 
 In renderer.js function displayArticle recipes loop, can Spectre.css column classes replace 
  float-left and {clear: left} divs?
+
+Or, add <template> elements to index.html for repeated elements such as {clear: left} divs
+

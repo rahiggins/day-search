@@ -1241,11 +1241,16 @@ async function mainline () {
     let title = $('h1').text().trim();
     Log("Title: " + title);
 
-    // Call adjustTitle to remove prefixes from the title
+    // Call adjustTitle to remove prefixes from the title and return an articleObj
     let articleObj = adjustTitle(title);
-    // Add author and href to the object returned by adjustTitle and
-    //  push the object to the articles array
-    articleObj['author'] = $('#story > header > div.css-xt80pu.eakwutd0 > div > div > div > p > span.css-1baulvz.last-byline').text();
+
+    // Add author and href to the object returned by adjustTitle
+
+    // The author name can be contained in a <span> element by itself or 
+    //  preceded by 'By '.  Get the <span> text and nullify 'By ' if it exists.
+    //articleObj['author'] = $('#story > header > div.css-xt80pu.eakwutd0 > div > div > div > p > span.css-1baulvz.last-byline').text();
+    articleObj['author'] = $('#story > header > div.css-xt80pu.eakwutd0 > div > div > div > p > span').text().replace('By ', '');
+
     articleObj['link'] = href;
 
     // Call findRecipes, which parses the article's HTML to identify recipes and
