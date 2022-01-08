@@ -424,9 +424,10 @@ function adjustTitle(title) {
     // If so, split the title at the first ';' or ':'        
     titleSplit = title.split(titleMatch[0]);
     Log("titleSplit: " + titleSplit);
-    // If the title was split at a ';', set the article's title to the portion following the ';' 
-    if (titleMatch[0] == ';') {
-      title = titleSplit.slice(-1)[0].trim();
+    // If the title was split at a ';', set the article's title 
+    //  to the portion following the ';' unless the 'THE CHEF' precedes the ';'
+    if (titleMatch[0] == ';' & titleSplit[0] != 'THE CHEF') {
+      title = titleSplit.slice(-1)[0].trim(); 
     // Else if the title was split at a ':' and the portion preceeding the ':' was 'recipe(s)' or 'pairing(s),
     //  set the article's title to the portion following the ':' 
     } else if (titleMatch[0] == ':' && titleSplit[0].toLowerCase().match(/recipe+s*|pairing+s*/) !== null) {
