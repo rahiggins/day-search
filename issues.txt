@@ -11,3 +11,9 @@ In renderer.js function displayArticle recipes loop, can Spectre.css column clas
 
 Or, add <template> elements to index.html for repeated elements such as {clear: left} divs
 
+In lib.js, function adjustParaText, can 'adapted' be handled in one place?
+    Is there a better way to count the ingredient units of measure in the
+    ingredient match results?
+
+
+

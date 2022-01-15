@@ -10,3 +10,4 @@ spectre.min.css
 spectre-icons.min.css
 /.vscode
 *.bak
+old-lib.js
