@@ -214,7 +214,15 @@ window.electron.onArticleDisplay( (args) => {
         Log("Element clicked");
         evt.preventDefault();
         console.log("Element: " + evt.target.tagName);
-        if (evt.target.tagName == "A" || evt.target.tagName == "SMALL") {
+        if (evt.target.tagName == "A") {
+            // Remove class from <a> elements before writing to clipboard
+            //   (class="float-left" was added when Seach All buttons were added)
+            // Class is not applicable to paste target and recipe_url_verify.py 
+            //  did not expect it
+            let classlessArticleNode =  evt.target.cloneNode(true);
+            classlessArticleNode.className="";
+            window.electron.clipboardWriteHTML(classlessArticleNode.outerHTML.replace('a class=""', "a" ));
+        } else if (evt.target.tagName == "SMALL") {
             window.electron.clipboardWriteHTML(evt.target.outerHTML);
         } else if (evt.target.tagName == "P" ) {
             window.electron.clipboardWriteText(evt.target.innerText);
