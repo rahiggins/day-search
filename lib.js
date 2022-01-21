@@ -97,6 +97,8 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     // Adjust <p> element text before determining whether it's a recipe name
     // Adjustments:
     //  - Remove author name at the end a paragraph
+    //  - If a paragraph ends with terminal punctuation [.?!] followed by ['")],
+    //     move the terminal punctuation to the end of the paragraph 
     //  - Discard inredients list contained in a single <p> element, noting
     //      that ingredients were found
     //  - Remove 'For the _:' phrases
@@ -110,7 +112,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
       "small", "medium", "large",
       "pound", "ounce", "gram",
       "inch", 
-      "clove", "bunch", "sprig", "sheet"
+      "clove", "bunch", "sprig", "sheet", "handful", "pinch"
     ]
 
     // Trim leading and trailing whitespace from the paragraph text.
@@ -127,8 +129,9 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     // Remove the author name, if it exists.
 
     // Create a RegExp to match (case-insensitive) the author name at the end
-    //  of the paragraph text and capture the text preceding the name.
-    let rx = new RegExp('(.*)' + articleObj.author + '$', 'i');
+    //  of the paragraph text (possibly preceded by spaces and dashes) and 
+    //  capture the text preceding the name (and possibly spaces and dashes).
+    let rx = new RegExp('(.*?)(\\s*-*\\s*)?' + articleObj.author + '$', 'i');
 
     // Look for a match
     let m = paraText.match(rx);
@@ -151,10 +154,23 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
 
     }
 
+    // Occasionally, paragraph text ends with apostrophes, double apostrophes,
+    //  quotes or right parentheses that follow terminal punctuation [.?!],
+    //  obscuring the terminal punctuation.
+    // If that is the case, move the terminal punctuation to the end of the
+    //  the paragraph text so that the terminal puncuation can be recognized.
+    let punctChars = paraText.match(/([\.\?\!]{1})([\'\"\)]{1,3})$/); // 3 consecutive apostorphes: 11/05/2000 'The Latest Temptations of Uma'
+
+    if (punctChars != null) {
+      let punctCharsLength = punctChars[0].length
+      paraText = paraText.slice(0,-punctCharsLength) + punctChars[2] + punctChars[1]      
+    }
+
     // Occaisionally, the ingredients list is contained in one <p> element, instead
     //  of each ingredient contained in its own <p> element.  Check for this 
     //  situation and discard the ingredients list, setting the booleans
-    //  ingredientFound and numFound to true.
+    //  ingredientFound and numFound to true, and resetting the recipe name
+    //  accumulator.
 
     // Occasionally, the recipe name followed by the ingredients list are in the 
     //  same <p> element (e.g. 12/17/2000 - Plaen and Fancy).  In this case,
@@ -162,7 +178,6 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
 
     // Check for ingredients list in the same <p> element
     pCharacteristics = para(paraText);
-    //if (!Number.isInteger(parseInt(paraText.substr(0,1))) && !paraText.trim().startsWith('Yield:')) {
     if (!pCharacteristics.isInstr && !pCharacteristics.isYield) {
       // For paragraph text that:
       //  - is not an instruction and
@@ -171,12 +186,13 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
 
       // Create a regular expression to match:
       //  'n n/n' or 'n' or 'n/n' or 'n{n}-'
-      //   followed by whitespace
+      //   followed by 0 or more whitespace characters
       //   followed by alphabetic characters
+      //   followed by 1 whitespace character
 
-      // This expression matches an ingredient measure (e.g. '1 cup', 
-      // '1/2 tablespoon', '18-pound', '3 large', '1 3/4 sheets', etc)
-      let ingredientRxBase = /(\d\s\d\/\d|\d|\d\/\d|\d+-)\s*\w+/;
+      // This expression matches an ingredient measure (e.g. '2 cups ', 
+      // '1/2 tablespoon ', '18-pound ', '3 large ', '1 3/4 sheets', etc)
+      let ingredientRxBase = /(\d\s\d\/\d|\d+|\d\/\d|\d+-)\s*\w+\s/;
 
       // Create global match version of that expression
       let ingredientRxG = new RegExp(ingredientRxBase, 'g')
@@ -195,18 +211,29 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
         for (let i = 0; i < ingredients.length; i++) {
           for (let m = 0; m < unitsOfMeasurement.length; m++) {
             if ( ingredients[i].includes(unitsOfMeasurement[m]) ) {
-              measureCount++
-              break
+              // If the ingredient match includes a unit of measure,
+              Log("Ingredient match: " + ingredients[i] + " includes UOM: " + unitsOfMeasurement[m])
+
+              // Check for unit or unit plural followed by whitespace
+              let uomRx = new RegExp(unitsOfMeasurement[m] + 's?\\s$')
+              if (ingredients[i].match(uomRx) != null) {
+                // If so, count the measure
+                measureCount++
+                break
+              } else {
+                Log("Not an ingredient: %" + ingredients[i] + "%")
+              }
             }
           }
         }
         Log("Number of ingredient matches: " + ingredients.length.toString())
         Log("Number of matches including a measure: " + measureCount.toString())
 
-        // Remove a single-paragraph ingredients list
-        if (measureCount >= Math.floor(ingredients.length / 2)) {
-          // If half or so ingredient matches include an ingredient measure,
-          //  discard the ingredients list
+        // Verify that the matched text is an ingredients list
+        if (measureCount >= Math.max(Math.floor(ingredients.length / 2), 2)) {
+          // If half or so ingredient matches, but at least 2,
+          //  include an ingredient measure, the matched text is an ingredients
+          //  list, which will be noted and discarded.
           
           // Match the first ingredient
           let firstIngredient = paraText.match(ingredientRxBase);
@@ -215,15 +242,19 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
           // Get the index of the first ingredient
           let firstIngredientIndex = firstIngredient.index;
           Log("para with ingredients, first ingredient index: " + firstIngredientIndex.toString());
-          Log("Sliced paraText: " + paraText.slice(0,firstIngredientIndex));
 
           // Slice the paragraph text at the first ingredient index and trim
           paraText = paraText.slice(0,firstIngredientIndex).trim();
+          Log("Sliced paraText: " + paraText);
+
 
           // Indicate that ingredients were found and 
-          //  that numbered paragraphs were found
+          //  that numbered paragraphs were found and
+          //  empty the recipe name accumulator
           ingredientFound = true;
           numFound = true;
+          accumRecipeName = "";
+          Log("Ingredients found, accumRecipeName reset");
 
         }
 
@@ -499,7 +530,8 @@ function para(text) {
       allCAPS: (text === text.toUpperCase() && text != ''),
       ad: words[0] === "Advertisement",
       adapted: words[0].search(/Adapted/i) > -1,
-      punct: text.match(/[\.\,\?!\"\')]$/) != null,
+      //punct: text.match(/[\.\,\?!\"\')]$/) != null,
+      punct: text.match(/[\.\?!]$/) != null,
       time: text.toLowerCase().includes('total time:')
   }
   
