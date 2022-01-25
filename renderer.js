@@ -46,6 +46,8 @@ let writeSwitch = document.getElementById('writeSwitch');
 let orP = document.getElementById('orP');
 let dateForm = document.getElementById('dateForm');
 let fileForm = document.getElementById('fileForm');
+let validateForm = document.getElementById('validateForm');
+let validateButton = document.getElementById('validateButton');
 const mL = document.getElementById('msgs');     // messages list div
 const aL = document.getElementById('aList');    // articles list div
 
@@ -88,6 +90,11 @@ function remvAllMsg() {
     while (mL.firstChild) {
         mL.removeChild(mL.lastChild);
     }
+}
+
+function removeOr () {
+    let Ors = document.getElementsByClassName("or");
+    while (Ors.length > 0) Ors[0].remove();
 }
 
 window.electron.onDisplaySpinner( () => {
@@ -204,6 +211,7 @@ window.electron.onArticleDisplay( (args) => {
     // Input:   articleObj,
     //          article recipes,
     //          article type
+    //          (optional) expected results
 
     function elementClick (evt) {
         // Click event handler for elements
@@ -583,8 +591,9 @@ async function Mainline() {
         dateInput.disabled = true;
 
         // Remove testcase file input
-        orP.remove()
-        fileForm.remove()
+        fileForm.remove();
+        validateForm.remove()
+        removeOr();
 
         // Remove any previous messages
         remvAllMsg();
@@ -610,7 +619,8 @@ async function Mainline() {
     //  tell the index.js to process the testcase file
     fileInput.addEventListener("change", () => {
         dateForm.remove();
-        orP.remove();
+        validateForm.remove()
+        removeOr();
         let hrefFile = fileInput.files[0].path.replace("html", "txt")
         window.electron.send('process-file', 
             [fileInput.files[0].path,
@@ -618,6 +628,20 @@ async function Mainline() {
             ]
         )
     }, false);
+
+    // When the Validate button is clicked, remove the date input and the
+    //  testcase file input, then tell the index.js process to validate
+    //  the solvedTestcases articles
+    validateButton.addEventListener('click', () => {
+        Log("Validate button clicked")
+        dateForm.remove();
+        fileForm.remove();
+        validateForm.remove()
+        removeOr();
+        window.electron.send('process-validate')
+    }, false);
+
+
 
 }
 

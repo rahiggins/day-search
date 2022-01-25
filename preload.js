@@ -14,7 +14,9 @@ contextBridge.exposeInMainWorld(
         getLastDate: () => ipcRenderer.invoke('getLastDate'),
         send: (channel, data) => {
           // whitelist channels
-          let validChannels = ['mainAOT', 'article-open', 'author-search', 'captcha-solved', 'process-date', 'process-file', 'dialog-error'];
+          let validChannels = ['mainAOT', 'article-open', 'author-search', 
+                                'captcha-solved', 'process-date', 'process-file', 
+                                'process-validate', 'dialog-error'];
           if (validChannels.includes(channel)) {
               ipcRenderer.send(channel, data);
           }

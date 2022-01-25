@@ -40,6 +40,7 @@
 //  lib.js can be replaced by testcase-lib.js.
 
 // Version single-search 0.1
+// Version validate 0.2
 
 // Code structure:
 //
@@ -130,7 +131,24 @@ const { exec } = require('child_process');
 const needle = require('needle'); // HTTP client
 const puppeteer = require('puppeteer'); // Chrome API
 const cheerio = require('cheerio'); // core jQuery
-const pos = require('pos');  // Part Of Speech classification 
+const pos = require('pos');  // Part Of Speech classification
+
+// Choose source for the article parsing routines:
+//  recipeParse
+//  para
+//  adjustTitle
+//  findRecipes
+let libName; // name of file containing functions 
+if ( fs.existsSync('./testcase-lib.js') ) {
+  // Use test versions of adjustTitle and findRecipes
+  console.log("Using testcase-lib.js")
+  libName = './testcase-lib.js'
+} else {
+  // Use base versions of adjustTitle and findRecipes
+  console.log("Using lib.js")
+  libName = './lib.js'
+}
+const { adjustTitle, findRecipes } = require(libName);
 
 // Get path to application data and set set paths to lastDate and testcase
 const appPath = app.getPath('appData') + "/" + app.name + '/';
@@ -241,6 +259,58 @@ async function login () {
   });
 }
 
+function prepArticle(htmlToParseFile, hrefFile) {
+  // Prepare article to be examined for recipes by function findRecipes
+  // Input: - path of file containing the article's HTML (*.html)
+  //        - path of file containing article's url and optionally, recipes (*.txt)
+  // Output:  - array:
+  //            - Cheerio query function based on the article's HTML
+  //            - the articleObj for the article
+  //            - an array of the article's expected recipe names, or null
+
+  //  - Read the article's .html and .txt files
+  let htmlToParse = fs.readFileSync(htmlToParseFile, "utf8");
+  let href = fs.readFileSync(hrefFile, "utf8");
+
+  // Attempt parsing the .txt file as a Javascript object
+  try {
+    href = JSON.parse(href)
+  } catch {}
+      
+  // href is an object when the file selection is in the solvedTestcases folder
+  let expectedRecipes;
+  if (typeof href == 'object') {
+    expectedRecipes = href.recipes;
+    href = href.url;
+  } else {
+    expectedRecipes = null;
+  }
+  console.log("function prepArticle entered, expectedRecipes:")
+  console.log(expectedRecipes)
+  
+  articles = []; // array of article objects
+  
+  // Create a Cheerio query function for the article HTML
+  $ = cheerio.load(htmlToParse);
+  // Get title
+  let title = $('h1').text().trim();
+  Log("Title: " + title);
+
+  // Call adjustTitle to remove prefixes from the title and return an articleObj
+  let articleObj = adjustTitle(title);
+
+  // Add author and href to the object returned by adjustTitle
+
+  // The author name can be contained in a <span> element by itself or 
+  //  preceded by 'By '.  Get the <span> text and nullify 'By ' if it exists.
+  //articleObj['author'] = $('#story > header > div.css-xt80pu.eakwutd0 > div > div > div > p > span.css-1baulvz.last-byline').text();
+  articleObj['author'] = $('#story > header > div.css-xt80pu.eakwutd0 > div > div > div > p > span').text().replace('By ', '');
+
+  articleObj['link'] = href;
+
+  return [$, articleObj, expectedRecipes]
+
+}
 
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -1215,51 +1285,81 @@ async function mainline () {
   ipcMain.on('process-file', async (event, arg) => {
     // Input: [HTML filename, href filename]
     console.log("process-file entered")
+
     htmlToParseFile = arg[0];
     hrefFile = arg[1];
     Log("HTML to parse file: " + htmlToParseFile)
     Log("href file: " + hrefFile)
-    let htmlToParse = fs.readFileSync(htmlToParseFile, "utf8");
-    let href = fs.readFileSync(hrefFile, "utf8")
-    articles = []; // array of article objects
-    let libName; // name of file containing functions recipeParse and adjustTitle
 
-    if ( fs.existsSync('./testcase-lib.js') ) {
-      // Use test versions of adjustTitle and findRecipes
-      Log("Using testcase-lib.js")
-      libName = './testcase-lib.js'
-    } else {
-      // Use base versions of adjustTitle and findRecipes
-      Log("Using lib.js")
-      libName = './lib.js'
-    }
-    const { adjustTitle, findRecipes } = require(libName);
-    
-    // Create a Cheerio query function for the article HTML
-    $ = cheerio.load(htmlToParse);
-    // Get title
-    let title = $('h1').text().trim();
-    Log("Title: " + title);
+    //let htmlToParse = fs.readFileSync(htmlToParseFile, "utf8");
+    //let href = fs.readFileSync(hrefFile, "utf8")
+    //    
+    //// href is an object when the file selection is in the solvedTestcases folder
+    //if (typeof href == 'object') {
+    //  let expectedRecipes = href.recipes;
+    //  href = href.url
+    //}
+    //
+    //articles = []; // array of article objects
+    //
+    //// Create a Cheerio query function for the article HTML
+    //$ = cheerio.load(htmlToParse);
+    //// Get title
+    //let title = $('h1').text().trim();
+    //Log("Title: " + title);
+//
+    //// Call adjustTitle to remove prefixes from the title and return an articleObj
+    //let articleObj = adjustTitle(title);
+//
+    //// Add author and href to the object returned by adjustTitle
+//
+    //// The author name can be contained in a <span> element by itself or 
+    ////  preceded by 'By '.  Get the <span> text and nullify 'By ' if it exists.
+    ////articleObj['author'] = $('#story > header > div.css-xt80pu.eakwutd0 > div > div > div > p > span.css-1baulvz.last-byline').text();
+    //articleObj['author'] = $('#story > header > div.css-xt80pu.eakwutd0 > div > div > div > p > span').text().replace('By ', '');
+//
+    //articleObj['link'] = href;
 
-    // Call adjustTitle to remove prefixes from the title and return an articleObj
-    let articleObj = adjustTitle(title);
-
-    // Add author and href to the object returned by adjustTitle
-
-    // The author name can be contained in a <span> element by itself or 
-    //  preceded by 'By '.  Get the <span> text and nullify 'By ' if it exists.
-    //articleObj['author'] = $('#story > header > div.css-xt80pu.eakwutd0 > div > div > div > p > span.css-1baulvz.last-byline').text();
-    articleObj['author'] = $('#story > header > div.css-xt80pu.eakwutd0 > div > div > div > p > span').text().replace('By ', '');
-
-    articleObj['link'] = href;
+    let [$, articleObj, expectedRecipes] = prepArticle(htmlToParseFile, hrefFile)
 
     // Call findRecipes, which parses the article's HTML to identify recipes and
     //  displays those recipes.  The function returns the articles displayed, which
     //  for testcase will always be 1.
-    let articlesDisplayed = await findRecipes($, articleObj, mainWindow)
+    let articlesDisplayed = await findRecipes($, articleObj, mainWindow, expectedRecipes);
     mainWindow.webContents.send('enable-searchButtons')
 
   });
+
+  // Handle click on the Validate button
+  ipcMain.on('process-validate', async () => {
+    console.log("Process validate received")
+
+
+    // Get entries in %appPath%/testcase/solvedTestcases (directories named mm-dd-yyyy)
+    let solvedTestcasesDates = fs.readdirSync(testcase + "/solvedTestcases");
+    for (solvedTestcasesDate of solvedTestcasesDates) {
+      if (!solvedTestcasesDate.startsWith('.')) {
+
+        // Get files in %appPath%/testcase/solvedTestcases/mm-dd-yyyy
+        let solvedTestcaseDatePath = testcase + "/solvedTestcases" + "/" + solvedTestcasesDate
+        let solvedTestcaseFiles = fs.readdirSync(solvedTestcaseDatePath)
+        for (solvedTestcaseFile of solvedTestcaseFiles) {
+          if (solvedTestcaseFile.endsWith(".html")) {
+            let solvedTestcaseTxtFile = solvedTestcaseFile.match(/(.*)\.html$/)[1] + '.txt'
+            let htmlToParseFile = solvedTestcaseDatePath + "/" + solvedTestcaseFile
+            let hrefFile = solvedTestcaseDatePath + "/" + solvedTestcaseTxtFile
+            console.log("HTML file: " + htmlToParseFile)
+            console.log("Txt file: " + hrefFile)
+
+            let [$, articleObj, expectedRecipes] = prepArticle(htmlToParseFile, hrefFile)
+            console.log("on return from prepArticle, expectedRecipes:")
+            console.log(expectedRecipes)
+            let articlesDisplayed = await findRecipes($, articleObj, mainWindow, expectedRecipes);
+          }
+        }
+      }
+    }
+  })
 
   // Listen for NYTCooking Stop button click
   //  Stop filtering search results by setting continueWithResultsPages to false
