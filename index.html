@@ -7,6 +7,93 @@
     <link rel="stylesheet" href="AppStyles.css">
   </head>
   <body>
+
+    <template id = article-title>
+
+      <div class="divider text-left artdiv"></div>
+      <div class="container ml-1">
+        <div class="columns col-oneline">
+          <div class="column col-auto"><a></a>
+          </div>
+        </div>
+        <p class="mb-0"></p>
+      </div>
+
+    </template>
+
+    <template id = article-title-searchAll>
+
+      <div class="divider text-left artdiv"></div>
+      <div class="container ml-1">
+        <div class="columns col-oneline">
+          <div class="column col-auto"><a></a>
+          </div>
+          <div class="column col-1">
+            <button class="btn btn-sm ml-2 disen"
+              data-all="true">
+              Search All
+            </button>
+          </div>
+        </div>
+        <p class="mb-0"></p>
+      </div>
+
+    </template>
+
+    <template id="recipe-list">
+
+      <div class="bg-secondary columns col-9 ml-0 mb-2 mt-1">
+        <small>
+        </small>
+      </div>
+      <div>
+      </div>
+
+    </template>
+
+    <template id="recipe-list-error">
+
+      <div class="bg-error columns col-9 ml-0 mb-2 mt-1">
+        <small>
+        </small>
+      </div>
+      <div>
+      </div>
+
+    </template>
+
+    <template id="recipe-name">
+
+      <div class="columns col-oneline">
+        <div class="column col-md-auto mb-1">
+          <p class="mb-0 srchArt"></p>
+        </div>
+        <div class="column col-3 mb-1">
+          <button class="btn btn-sm ml-2 disen"
+            data-all="false">
+            Search
+          </button>
+        </div>
+      </div>
+
+    </template>
+
+    <template id="recipe-name-long">
+
+      <div class="columns col-oneline">
+        <div class="column col-sm-auto mb-1">
+          <p class="mb-0 srchArt"></p>
+        </div>
+        <div class="column col-3 mb-1">
+          <button class="btn btn-sm ml-2 disen"
+            data-all="false">
+            Search
+          </button>
+        </div>
+      </div>
+
+    </template>
+
     <div style="padding-top: 1rem; padding-left: 2rem;">
       <form id="dateForm">
         <div class="container pb-2 pl-0">

@@ -5,10 +5,13 @@
 // Code structure:
 //
 //  Global variable definitions
+//
 //  Global function definitions
 //    function Log
+//    function setDefaults
 //    function addMsg
 //    function remvAllMsg
+//    function removeOr
 // 
 //   window.electron.onDisplaySpinner
 //   window.electron.onProgressBar
@@ -20,17 +23,21 @@
 //    function articleOpen
 //    function recipeSearch
 //    function displayArticle
-//      articleA EventListener for click => elementClick
-//      articleA EventListener for contextmenu => articleOpen
-//      artTitleDiv.lastChild EventListener for click => recipeSearch
-//      artDiv.lastChild EventListener for click => elementClick
-//      recipeSearchDiv.lastChild EventListener for click => recipeSearch
-//      artDiv.lastChild EventListener for click => elementClick
-//    artDiv EventListener for click => elementClick
-//    artDiv EventListener for contextmenu => articleOpen
+//      function createArticleTitle
+//          articleA EventListener for click => elementClick
+//          articleA EventListener for contextmenu => articleOpen
+//      function createAuthor
+//          authorP EventListener for click => elementClick
+//      function createRecipeLists
+//          recipeListSmall EventListener for click => elementClick
+//          recipeListSmall parent EventListener for click => elementClick
+//          searchButton EventListener for click => recipeSearch
+//      searchAllButton EventListener for click => recipeSearch
 //   window.electron.onEnableSearchButtons
 //   window.electron.onCaptchaDetected
-//   
+//     button EventListener for click
+//   window.electron.onValidateSuccessful
+//        
 //   function Mainline
 //    dateInput Eventlistener for input
 //    function validateDate
@@ -38,6 +45,7 @@
 //    dateInput EventListener for change
 //    function processDate
 //    fileInput EventListener for change
+//    validateButton EventListener for click
 
 let dateInput = document.getElementById('dateSpec');
 let fileInput = document.getElementById('fileSpec');
@@ -53,6 +61,18 @@ const aL = document.getElementById('aList');    // articles list div
 
 let debug = true;
 
+// Article title template content, without and with Search All button
+let articleTitleContent = document.getElementById("article-title").content;
+let articleTitleSearchAllContent = document.getElementById("article-title-searchAll").content;
+
+// Recipe list template content, without and with error background
+let recipeListContent = document.getElementById("recipe-list").content;
+let recipeListErrorContent = document.getElementById("recipe-list-error").content;
+
+// Recipe name template content, for typical and long recipe names
+let recipeNameContent = document.getElementById("recipe-name").content;
+let recipeNameLongContent = document.getElementById("recipe-name-long").content;
+
 // Function definitions
 
 function Log (text) {
@@ -62,20 +82,42 @@ function Log (text) {
     }
 }
 
-function addMsg(msgDiv, msg, opt) {
+function setDefaults(options, defaults){
+    // Set default values of an options object
+    // Input:   - an options object
+    //          - an object containing default option values
+    // Output:  - an object containing the input object values plus default 
+    //              values for options missing in the input object
+
+    if (options === undefined) { options = {}} 
+    for (const key in defaults) {
+        options[key] = key in options ? options[key] : defaults[key];
+    }
+    return options
+}
+
+function addMsg(msgDiv, msg, options) {
     // Add a message to the #msgs div
     // If opt { indent: true }, add padding-left to message
+    // If opt { color: class}, add 'class' to p.classList if 'class" != 'default'
     // Called throughout
 
-    if (typeof opt === 'undefined') {
-        opt = {
-            indent: false
-        };
-    }
+    // Define options defaults
+    const optionsDefaults = {
+        indent: false,
+        color: "default"
+    };
+
+    // Add missing option defaults to the options object
+    options = setDefaults(options, optionsDefaults)
+
     let para = document.createElement("p");
     para.className = "msg";
-    if (opt.indent) {
+    if (options.indent) {
         para.classList.add("pl-2");
+    }
+    if (options.color != "default") {
+        para.classList.add(options.color);
     }
     let txnd = document.createTextNode(msg);
     para.appendChild(txnd);
@@ -174,7 +216,7 @@ window.electron.onKeywordDiv( (arg) => {
         document.getElementById('Pbar').remove();
     } catch {
         mL.removeChild(mL.lastChild); 
-        console.log("No progress-bar")
+        Log("No progress-bar")
     }
     // Then, add the divider
     let keywDiv = document.createElement("div");
@@ -212,6 +254,7 @@ window.electron.onArticleDisplay( (args) => {
     //          article recipes,
     //          article type
     //          (optional) expected results
+    Log("onArticleDisplay entered");
 
     function elementClick (evt) {
         // Click event handler for elements
@@ -221,10 +264,11 @@ window.electron.onArticleDisplay( (args) => {
         // Write element HTML to clipboard
         Log("Element clicked");
         evt.preventDefault();
-        console.log("Element: " + evt.target.tagName);
+        Log("Element: " + evt.target.tagName);
         if (evt.target.tagName == "A") {
             // Remove class from <a> elements before writing to clipboard
             //   (class="float-left" was added when Seach All buttons were added)
+            //   (This may no longer be needed; "float-left" is no longer used)
             // Class is not applicable to paste target and recipe_url_verify.py 
             //  did not expect it
             let classlessArticleNode =  evt.target.cloneNode(true);
@@ -235,9 +279,9 @@ window.electron.onArticleDisplay( (args) => {
         } else if (evt.target.tagName == "P" ) {
             window.electron.clipboardWriteText(evt.target.innerText);
         } else if (evt.target.tagName == "DIV" ) {
-            window.electron.clipboardWriteHTML(evt.target.firstChild.outerHTML);
+            window.electron.clipboardWriteHTML(evt.target.firstElementChild.outerHTML);
         } else {
-            console.log("Element not recognized")
+            Log("Element not recognized")
         }
     }
 
@@ -250,8 +294,6 @@ window.electron.onArticleDisplay( (args) => {
         // Validate URL - open only nytimes.com URLs
         let url = new URL(href);
         if (url.hostname.endsWith('nytimes.com')) {
-            console.log("Opened article: " + evt.target.innerText);
-            console.log(href);
             window.electron.send('article-open', href);
         } else {
             window.electron.send("dialog-error", 
@@ -292,173 +334,302 @@ window.electron.onArticleDisplay( (args) => {
         window.electron.send('author-search', [author, title, all])
     }
 
-    function displayArticle(article, recipes, type) {
-        // Append the elements of an article display to the browserWindow
+    function displayArticle(article, recipes, type, expectedRecipes) {
+        // Append the components of an article display to the browserWindow
+        // - Article title {Search All}
+        // - {Author}
+        // - {small-font recipe name list}
+        // - {Recipe name Search} (possibly repeated)
+        // Input:   - articleObj
+        //          - array of recipe names
+        //          - article type (e.g. Article, Tasting, cooking.nytimes.com, etc)
+        //          - array of expected recipe names (optional, implies Validate)
+        Log("function displayArticle entered")
+    
+        //
+        /// Function definitions
+        //
+        
+        function createArticleTitle(articleTitleContent) {
+            // Create an article title component
+            // - Divider with article type
+            // - Article title with href and click and double-click listeners
+            // - optional Search All button
+            // Input:   - content of an article-title template
+            // Output:  - [article title element, article container element]
+            Log("function createArticleTitle entered")    
 
-        Log("Display article and recipes:");
-        Log("  title; " + article.title)
-        Log("  author: " + article.author)
-        Log("  href:" + article.link)
-        Log("article: " + JSON.stringify(article))
-        let numRecipes = recipes.length;
-        for (let r = 0; r < numRecipes; r++) {
-            Log("   " + recipes[r])
+            // Clone the article-tile template content
+            let articleTitle = articleTitleContent.cloneNode(true);
+
+            // Identify the article container element; other elements will be
+            //  appended to this
+            let articleContainer = articleTitle.querySelector(".container");
+
+            // Identify the divider element and set its content to the
+            //  article type
+            let articleDivider = articleTitle.querySelector(".divider");
+            articleDivider.setAttribute('data-content', type);
+
+            // Identify the article title <a> element, set its
+            //  href attribute and text content, and add event listeners
+            let articleA = articleTitle.querySelector("a");
+            articleA.setAttribute('href', article.link);
+            articleA.textContent = article.title;
+            articleA.addEventListener("click", elementClick, false);
+            articleA.addEventListener("contextmenu", articleOpen, false);
+
+            Log("function createArticleTitle exiting")
+            return [articleTitle, articleContainer]
+    
         }
+    
+        function createAuthor (articleTitle, author) {
+            // Add the author name to the article title element, along with
+            //  a click event listener
+            // Input:   - article title element
+            //          - author name
+            // Output:  - article title element   
+            Log("function createAuthor entered")
 
-        // Add an 'Article' divider
-        let divDiv = document.createElement("div");
-        divDiv.className = "divider text-left artdiv";
-        divDiv.setAttribute('data-content', type);
-        aL.appendChild(divDiv)
-
-        // Create a <div> element for the article display
-        let artDiv = document.createElement("div");
-        artDiv.className = "ml-1";
-
-        // Create a <div> element for the article title
-        let artTitleDiv = document.createElement("div");
-        artTitleDiv.className = "float-left";
-
-        // Add an <a> element for the article to the article title <div>
-        let articleA = document.createElement("a");
-        articleA.className = "float-left";
-        articleA.setAttribute('href', article.link);
-        articleA.textContent = article.title;
-        articleA.addEventListener("click", elementClick, false);
-        articleA.addEventListener("contextmenu", articleOpen, false);
-        artTitleDiv.appendChild(articleA);
-
-        if (numRecipes > 1) {
-            // If there is more than 1 recipe, add a Search All button to the article title <div>
-            let searchAllButton = document.createElement("button");
-            searchAllButton.classList = "btn float-left btn-sm ml-2 disen"
-            searchAllButton.textContent = "Search All";
-
-            // Add data describing the recipes to be searched to the button
-            searchAllButton.dataset.title = JSON.stringify(recipes);
-            searchAllButton.dataset.author = article.author;
-            searchAllButton.dataset.all = true;
-
-            // Disable the button
-            searchAllButton.disabled = true;
+            // Identify the article title <p> element, set its text to 
+            //  the author name and add a click event listener
+            let authorP = articleTitle.querySelector("p");
+            authorP.textContent = author;
+            authorP.addEventListener("click", elementClick, false);
             
-            // Append the button to the page and establish a click listener
-            artTitleDiv.appendChild(searchAllButton);
-            artTitleDiv.lastChild.addEventListener("click", recipeSearch, false);
+            Log("function createAuthor exiting")
+            return [articleTitle]
         }
 
+        function createRecipeLists(recipes, options) {
+            // Create lists of recipe names
+            //  - small-font list of recipe names
+            //  - recipe name and Search button combinations, repeated
+            // Input:   - array of recipe names
+            //          - options object:
+            //              -- boolean to add recipe name and Search button 
+            //                  combinations, default is true
+            //              -- boolean to select bg-error for small-font 
+            //                  list of recipe names, default is false
+            // Output:  recipe list component
+            Log("function createRecipeLists entered");
 
-        // Append the article title <div> to the article display <div>
-        artDiv.appendChild(artTitleDiv);
+            // Define variables created in this function
+            let recipeList; // template content clone
+            let recipeName; // template content clone
 
-        // Append a <div> element to clear the previous float-left
-        let clearDiv = document.createElement("div");
-        clearDiv.className = "clearDiv";
-        artDiv.appendChild(clearDiv);
+            // Define options defaults
+            const optionsDefaults = {
+                error: false,
+                addRecipeSearchButtons: true
+            };
+        
+            // Add missing option defaults
+            options = setDefaults(options, optionsDefaults);
+ 
+            // Clone the recipe-list template content; indentify its 
+            //  <small> element and add a click event listener to the 
+            //  <small> element
 
-        if (!article.link.includes("cooking.nytimes.com")) {
-            // If the article does not link to cooking.nytimes.com,
-            //  append author and recipes elements to the article display <div>
+            // if options.error is true, use the recipe list template that
+            //  specifies class bg-error, else use the template that specifies
+            //  bg-secondary
+            if ( options.error ) {
+                recipeList = recipeListErrorContent.cloneNode(true);
+            } else {
+                recipeList = recipeListContent.cloneNode(true);
+            }
 
-            // Create a <p> element for the author, append it to the article display <div> and
-            //  listen for click on it
-            let Author = document.createElement("p");
-            Author.className = "mb-0"
-            Author.textContent = article.author;
-            artDiv.appendChild(Author);
-            artDiv.lastChild.addEventListener("click", elementClick, false);
+            // Add a click event listener to the recipe list <small> element
+            let recipeListSmall = recipeList.querySelector("small")
+            recipeListSmall.addEventListener("click", elementClick, false);
 
-            // Create a <div> for the recipe list
-            let recipesDiv = document.createElement("div");
-            recipesDiv.className = "bg-secondary columns col-9 ml-0 mb-2 mt-1"
+            // Add a click event listener to the parent <div> element of the <small> element
+            recipeListSmall.parentNode.addEventListener("click", elementClick, false);
 
-            // Create a <small> element
-            let Recipes = document.createElement("small");
-
-            // Create a recipe search <div> element
-            let recipesSearchDiv = document.createElement("div");
+            // Identify the <div> element to contain the recipe name and Search
+            //  button combinations
+            let recipeDiv = recipeList.lastElementChild;
 
             Log("Number of recipes: " + recipes.length.toString());
             for (let i = 0; i < recipes.length; i++) {
                 // For each recipe ...
                 Log("Recipe: " + i.toString());
-
+    
                 //  ... skip those with no name 
                 if (recipes[i] == "Recipe Name not found") {
                     Log("Name not found skipped");
                     continue;
                 }
-
+    
                 // Append the recipe name to the <small> element; append a <br> element if
                 //  there are more recipes
-                Recipes.appendChild(document.createTextNode(recipes[i]))
+                recipeListSmall.appendChild(document.createTextNode(recipes[i]))
                 if (i < recipes.length-1) {
-                    Log("Add linbreak: " + i.toString())
                     let linebreak = document.createElement("br");
-                    Recipes.appendChild(linebreak);
+                    recipeListSmall.appendChild(linebreak);
                 }
 
-                // Create a recipe name <div> element
-                let recipeSearchDiv = document.createElement("div");
-                recipeSearchDiv.className = "float-left mb-1";
+                if ( options.addRecipeSearchButtons ) {
+                    // If recipe name and Search button combinations are to be
+                    //  added ...    
+                    
+                    // KLUDGE
+                    // For recipe names longer 52, choose the recipe name template that
+                    //  uses class col-sm-auto, instead of col-md-auto.
+                    // This avoids a scroll bar on long recipe names, instead
+                    //  wrapping the recipe name.  How does it do that?
+                    if (recipes[i].length > 52) {
+                        recipeName = recipeNameLongContent.cloneNode(true);
+                    } else {
+                        recipeName = recipeNameContent.cloneNode(true);
+                    }
 
-                // Create a recipe name <p> element and append the recipe name to it
-                let searchRecipe = document.createElement("p");
-                searchRecipe.classList = "float-left mb-0 srchArt"
-                searchRecipe.textContent = recipes[i];
+                    // Set the recipe name component's <p> element text to the 
+                    //  recipe name
+                    recipeName.querySelector("p").textContent = recipes[i];
+    
+                    // Identify the Search button element, set its data-title
+                    //  and data-author attributes, and add a click event listener
+                    let searchButton = recipeName.querySelector("button");
+                    searchButton.dataset.title = recipes[i];
+                    searchButton.dataset.author = article.author;
+                    searchButton.disabled = true;
+                    searchButton.addEventListener("click", recipeSearch, false);
 
-                // Create a search <button> element
-                let searchButton = document.createElement("button");
-                searchButton.classList = "btn float-left btn-sm ml-2 disen"
-                searchButton.textContent = "Search";
-                searchButton.dataset.title = recipes[i];
-                searchButton.dataset.author = article.author;
-                searchButton.dataset.all = false;
-                searchButton.disabled = true;
-
-                // Append the recipe name <p> element to the recipe name <div> element
-                recipeSearchDiv.appendChild(searchRecipe);
-
-                // Append the search <button> element to the recipe name <div> element and
-                //  listen for click on the search <button> element 
-                recipeSearchDiv.appendChild(searchButton);
-                recipeSearchDiv.lastChild.addEventListener("click", recipeSearch, false);
-
-                // Append the recipe name <div> element to the recipe search <div> element
-                recipesSearchDiv.appendChild(recipeSearchDiv);
-
-                // Create a <div> element to clear the previous float-left and append it to
-                //  the recipe search <div> element
-                let clearDiv = document.createElement("div");
-                clearDiv.className = "clearDiv";
-                recipesSearchDiv.appendChild(clearDiv);
+                    // Add the recipe name and Search button combination to
+                    //  the recipe list component
+                    recipeDiv.appendChild(recipeName);
+                }
             }
-
-            // Append the <small> element to the recipes list <div>
-            recipesDiv.appendChild(Recipes)
-
-            // Append the recipes list <div> to the article display <div> and listen 
-            //  for click on the recipes list <div>
-            artDiv.appendChild(recipesDiv)
-            artDiv.lastChild.addEventListener("click", elementClick, false);
-
-            // Append the recipe search <div> to the article display <div>
-            artDiv.appendChild(recipesSearchDiv);
+    
+            Log("function createRecipeLists exiting")
+            // Return the recipe list component
+            return recipeList
         }
 
-        // Append the article display <div> to the articles list <div>
-        aL.appendChild(artDiv)
+        // 
+        /// End of function definitions
+        //
+    
+        Log("Display article and recipes:");
+        Log("  title; " + article.title)
+        Log("  author: " + article.author)
+        Log("  href:" + article.link)
+        Log("article: " + JSON.stringify(article))
+    
+        // Just to be clear, (expectedRecipes != null) => Validate button clicked
+        if (expectedRecipes != null) {
+            validating = true;
+        } else {
+            validating = false
+        }
+    
+        Log("Discovered recipes:")
+        let numRecipes = recipes.length;
+        for (let r = 0; r < numRecipes; r++) {
+            Log("   " + recipes[r])
+        }
+        if (validating) {
+            Log("Expected recipes:")
+            let exNumRecipes = expectedRecipes.length;
+            for (let r = 0; r < exNumRecipes; r++) {
+                Log("   " + expectedRecipes[r])
+            }
+        }
+    
+        // There are 3 flavors of article display:
+        //  1) An NYT Cooking recipe - display only article title (== recipe name)
+        //  2) An article from a date search or a testcase file - display all 
+        //      components
+        //  3) A Validate deviation - display small-font recipe lists,  both
+        //      discovered and expected
+        if (article.link.includes("cooking.nytimes.com")) {
+            // For an NYT Cooking recipe ...
 
+            // Create an article title component without a Search All button 
+            let [articleTitle] = createArticleTitle(articleTitleContent);
+
+            // Add the article title component to the browser window
+            aL.appendChild(articleTitle);
+    
+        } else if (!validating) {
+            // For date search and testcase file results ...
+    
+            let content;
+            if (numRecipes > 1) {
+                // If there are multiple recipes, the article title will be 
+                //  followed by a Search All button
+                content = articleTitleSearchAllContent
+            } else {
+                content = articleTitleContent
+            }
+    
+            // Create an article title component
+            let [articleTitle, articleContainer] = createArticleTitle(content);
+    
+            if (numRecipes > 1) {
+                // If necessary, add info to the Search All button element
+                //  and add a click event listener
+                let searchAllButton = articleTitle.querySelector("button");
+                searchAllButton.dataset.title = JSON.stringify(recipes);
+                searchAllButton.dataset.author = article.author;
+                searchAllButton.disabled = true;
+                searchAllButton.addEventListener("click", recipeSearch, false);
+            }
+
+            // Add the author name to the article title component
+            [articleTitle] = createAuthor(articleTitle, article.author);
+
+            // Add the article title component to the browser window
+            aL.appendChild(articleTitle);
+
+            // Create recipe name lists: small-font names and names with Search buttons
+            recipeList = createRecipeLists(recipes);
+
+            // Append those lists to the article
+            articleContainer.appendChild(recipeList);
+    
+        
+    
+        } else {
+            // For Validate deviations ...
+
+            // Create an article title component 
+            let [articleTitle, articleContainer] = createArticleTitle(articleTitleContent);
+
+            // Append the article title component to the browser window
+            aL.appendChild(articleTitle);
+ 
+            // Create a small-font list of the unexpected recipe names with the error background,
+            //  no recipe name/Search button combinations
+            recipeList = createRecipeLists(recipes, {addRecipeSearchButtons: false, error: true});
+    
+            // Append that small-font list to the article
+            articleContainer.appendChild(recipeList);
+
+            // Create a small-font list of the expected recipe names,
+            //  no recipe name/Search button combinations
+            recipeList = createRecipeLists(expectedRecipes, {addRecipeSearchButtons: false});
+
+            // Append that small-font list to the article
+            articleContainer.appendChild(recipeList);
+    
+        }
+    
+        Log("function displayArticle exiting")
+    
     }
 
     // Parse args
-    let [article, recipes, type] = args
+    let [article, recipes, type, expectedRecipes] = args
 
     // Convert article to array
     article = JSON.parse(article);
 
     // Display the article and its recipes 
-    displayArticle( article, recipes, type );
+    displayArticle( article, recipes, type, expectedRecipes );
 
 })
 
@@ -517,6 +688,12 @@ window.electron.onCaptchaDetected( () => {
 
     },  {once: true});  // Remove the listener after a click
 
+})
+
+// Display "no Validate deviations" message
+window.electron.onValidateSuccessful( () => {
+    let msg = "All results were as expected"
+    addMsg(mL, msg, { color: "text-success"})
 })
 
 // Mainline function

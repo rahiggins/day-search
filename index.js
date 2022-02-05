@@ -15,6 +15,11 @@
 //  for recipes by the article's author that match the recipe name.  Matches 
 //  are displayed in a separate window.
 
+// For articles that contain more than one recipe, a 'Search All' button is
+//  is displayed next to the article title. When clicked, NYT Cooking is
+//  searched by author name, and results matching any of the article's recipes 
+//  are displayed in a separate window.
+
 // This apppication requires an instance of Chrome enabled for remote debugging.
 //  First start Chrome by executing Remote_debug_Chrome.sh in the Terminal app
 //  and use that instance of Chrome to log in to nytimes.com.  Then start this
@@ -38,6 +43,19 @@
 //  duplicated as testcase-lib.js, and testcase-lib.js can be modified to 
 //  attempt to parse the article correctly.  If the attempt is successful,
 //  lib.js can be replaced by testcase-lib.js.
+
+// VALIDATE
+
+// The application provides an option to examine a set of reference articles
+//  for recipes and to compare the recipes found to the recipes known to 
+//  be in the article.  For articles where there is a discrepancy between the 
+//  recipes found and the recipies know to exist, both sets of recipes are 
+//  displayed.
+
+// The reference articles are in 
+//  ~/Library/Application Support/day-search/testcase/solvedTestcases
+
+// The validate option uses testcase-lib.js, if it exists.
 
 // Version single-search 0.1
 // Version validate 0.2
@@ -1334,6 +1352,8 @@ async function mainline () {
   ipcMain.on('process-validate', async () => {
     console.log("Process validate received")
 
+    let articlesDisplayed = 0
+
 
     // Get entries in %appPath%/testcase/solvedTestcases (directories named mm-dd-yyyy)
     let solvedTestcasesDates = fs.readdirSync(testcase + "/solvedTestcases");
@@ -1354,10 +1374,15 @@ async function mainline () {
             let [$, articleObj, expectedRecipes] = prepArticle(htmlToParseFile, hrefFile)
             console.log("on return from prepArticle, expectedRecipes:")
             console.log(expectedRecipes)
-            let articlesDisplayed = await findRecipes($, articleObj, mainWindow, expectedRecipes);
+            articlesDisplayed += await findRecipes($, articleObj, mainWindow, expectedRecipes);
           }
         }
       }
+    }
+    // If articlesDisplayed is zero, tell renderer.js 
+    //  to display all valid msg
+    if (articlesDisplayed == 0) {
+      mainWindow.webContents.send('validate-successful');
     }
   })
 

@@ -175,7 +175,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
 
         // ... set the paragraph text to the capture group, trimmed
         paraText = m[1].trim()
-        console.log('Author name removed from <p> element');
+        Log('Author name removed from <p> element');
 
         // Characterize the text
         pCharacteristics = para(paraText);
@@ -334,6 +334,14 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     // Walk back through <p> elements preceeding the recipe marker, 
     //  "Yield:" or "1. ", examining each to identify the recipe name
     for (let i = arr[j]-1; i > -1; i--) {
+
+      // Starting in early 2022, a section with attribute role=complementary that
+      //  contains <p> elements may be inserted at arbitary locations
+      //  in the article.  These <p> elements have no relevance to the article
+      //  and must be skipped.
+      if ($(paras[i]).parents("section[role=complementary]").length > 0) {
+        continue
+      }
       
       // Get text of each <p> element
       let paraText = adjustParaText($(paras[i]).text());
@@ -772,7 +780,7 @@ async function findRecipes($, articleObj, mainWindow, expectedRecipes) {
     if (expectedRecipes == null || !validated) {
       Log("Display article: " + articleObj.title)
       articlesDisplayed++;
-      mainWindow.webContents.send('article-display', [JSON.stringify(articleObj), articleResults.recipes, articleResults.type], expectedRecipes)
+      mainWindow.webContents.send('article-display', [JSON.stringify(articleObj), articleResults.recipes, articleResults.type, expectedRecipes])
     }
 
   } else if (articleObj.cookingWithTheTimes) {
