@@ -30,6 +30,40 @@ function Log (text) {
   }
 }
 
+// Define a method to determine if two arrays are equal (https://stackoverflow.com/a/14853974)
+// Warn if overriding existing method
+if(Array.prototype.equals)
+    console.warn("Overriding existing Array.prototype.equals. Possible causes: New API defines the method, there's a framework conflict or you've got double inclusions in your code.");
+// attach the .equals method to Array's prototype to call it on any array
+Array.prototype.equals = function (array) {
+    // if the other array is a falsy value, return
+    if (!array) {
+      return false;
+    }
+
+    // compare lengths - can save a lot of time 
+    if (this.length != array.length) {
+      return false;
+    }        
+
+    for (var i = 0, l=this.length; i < l; i++) {
+        // Check if we have nested arrays
+        if (this[i] instanceof Array && array[i] instanceof Array) {
+            // recurse into the nested arrays
+            if (!this[i].equals(array[i])) {
+              return false; 
+            }                      
+        }           
+        else if (this[i] != array[i]) {
+            // Warning - two different object instances will never be equal: {x:20} != {x:20}
+            return false;   
+        }           
+    } 
+    return true;
+}
+// Hide method from for-in loops
+Object.defineProperty(Array.prototype, "equals", {enumerable: false});
+
 function recipeParse(demarcation, $, paras, arr, articleObj) {
   // Parse article page text for recipe names
   // Called by: findRecipe
@@ -141,7 +175,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
 
         // ... set the paragraph text to the capture group, trimmed
         paraText = m[1].trim()
-        console.log('Author name removed from <p> element');
+        Log('Author name removed from <p> element');
 
         // Characterize the text
         pCharacteristics = para(paraText);
@@ -300,6 +334,14 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     // Walk back through <p> elements preceeding the recipe marker, 
     //  "Yield:" or "1. ", examining each to identify the recipe name
     for (let i = arr[j]-1; i > -1; i--) {
+
+      // Starting in early 2022, a section with attribute role=complementary that
+      //  contains <p> elements may be inserted at arbitary locations
+      //  in the article.  These <p> elements have no relevance to the article
+      //  and must be skipped.
+      if ($(paras[i]).parents("section[role=complementary]").length > 0) {
+        continue
+      }
       
       // Get text of each <p> element
       let paraText = adjustParaText($(paras[i]).text());
@@ -475,8 +517,8 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     
     }        
 
-    Log("Recorded recipe name: " + recipeName);
-    recipeNameArray.push(recipeName)
+    Log("Recorded recipe name: '" + recipeName + "'");
+    recipeNameArray.push(recipeName.trim())
   }
   
   // Set the article tyoe
@@ -632,9 +674,22 @@ function adjustTitle(title) {
 
 }
 
-async function findRecipes($, articleObj, mainWindow) {
-  console.log("testcase version of findRecipes entered")
+async function findRecipes($, articleObj, mainWindow, expectedRecipes) {
+  // Find recipes in an article page
+  //  Input:  - Cheerio query function based on page HTML
+  //          - an article object
+  //          - a reference to the mainWindow
+  //          - Optional. For Validate, an array of expected recipe names
 
+  // If expectedRecipes is not null, the Validate button was clicked.
+  //  Returned recipe names will be checked against expected recipe names
+  if (expectedRecipes != null) {
+    validating = true
+  } else {
+    validating = false
+  }
+  console.log("findRecipes entered, validating: " + validating)
+  
   let articlesDisplayed = 0;
 
   // Set articleObj boolean key 'cookingWithTheTimes' as to whether
@@ -710,9 +765,23 @@ async function findRecipes($, articleObj, mainWindow) {
     for (let r = 0; r < articleResults.recipes.length; r++) {
       Log(articleResults.recipes[r])
     }
-    Log("Display article: " + articleObj.title)
-    articlesDisplayed++;
-    mainWindow.webContents.send('article-display', [JSON.stringify(articleObj), articleResults.recipes, articleResults.type])
+
+    // If expected recipes were passed to this function,
+    //  see if this function's results equal the expected results
+    let validated = true; // Assuming the results are equal
+    if (expectedRecipes != null) {
+      // Expected recipes were passed to this function ... 
+      if (!articleResults.recipes.equals(expectedRecipes)) {
+        // but this function's results don't equal the expected results
+        validated = false;
+      }
+    }
+
+    if (expectedRecipes == null || !validated) {
+      Log("Display article: " + articleObj.title)
+      articlesDisplayed++;
+      mainWindow.webContents.send('article-display', [JSON.stringify(articleObj), articleResults.recipes, articleResults.type, expectedRecipes])
+    }
 
   } else if (articleObj.cookingWithTheTimes) {
     // If the article is a 'Cooking With The Times' article, display it.

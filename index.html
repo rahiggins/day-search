@@ -5,14 +5,95 @@
     <title>NYT Day Search</title>
     <link rel="stylesheet" href="spectre.min.css">
     <link rel="stylesheet" href="AppStyles.css">
-    <!--
-    <style>
-      .author {font-size: .6rem;}
-      p {margin-bottom: 0px}
-    </style>
-    -->
   </head>
   <body>
+
+    <template id = article-title>
+
+      <div class="divider text-left artdiv"></div>
+      <div class="container ml-1">
+        <div class="columns col-oneline">
+          <div class="column col-auto"><a></a>
+          </div>
+        </div>
+        <p class="mb-0"></p>
+      </div>
+
+    </template>
+
+    <template id = article-title-searchAll>
+
+      <div class="divider text-left artdiv"></div>
+      <div class="container ml-1">
+        <div class="columns col-oneline">
+          <div class="column col-auto"><a></a>
+          </div>
+          <div class="column col-1">
+            <button class="btn btn-sm ml-2 disen"
+              data-all="true">
+              Search All
+            </button>
+          </div>
+        </div>
+        <p class="mb-0"></p>
+      </div>
+
+    </template>
+
+    <template id="recipe-list">
+
+      <div class="bg-secondary columns col-9 ml-0 mb-2 mt-1">
+        <small>
+        </small>
+      </div>
+      <div>
+      </div>
+
+    </template>
+
+    <template id="recipe-list-error">
+
+      <div class="bg-error columns col-9 ml-0 mb-2 mt-1">
+        <small>
+        </small>
+      </div>
+      <div>
+      </div>
+
+    </template>
+
+    <template id="recipe-name">
+
+      <div class="columns col-oneline">
+        <div class="column col-md-auto mb-1">
+          <p class="mb-0 srchArt"></p>
+        </div>
+        <div class="column col-3 mb-1">
+          <button class="btn btn-sm ml-2 disen"
+            data-all="false">
+            Search
+          </button>
+        </div>
+      </div>
+
+    </template>
+
+    <template id="recipe-name-long">
+
+      <div class="columns col-oneline">
+        <div class="column col-sm-auto mb-1">
+          <p class="mb-0 srchArt"></p>
+        </div>
+        <div class="column col-3 mb-1">
+          <button class="btn btn-sm ml-2 disen"
+            data-all="false">
+            Search
+          </button>
+        </div>
+      </div>
+
+    </template>
+
     <div style="padding-top: 1rem; padding-left: 2rem;">
       <form id="dateForm">
         <div class="container pb-2 pl-0">
@@ -36,8 +117,8 @@
               </div>
         </div>
       </form>
-      <div id="orP">
-        <p style="margin-top: 12px; margin-bottom: 12px">Or…</p>
+      <div class="or">
+        <p class='mb-0'>Or…</p>
       </div>
       <form id="fileForm">
         <div class="container pt-2 pb-2 pl-0">
@@ -47,12 +128,18 @@
               <div class="column col-10">
                 <input class="form-input form-inline" type="file" id="fileSpec" name="fileSpec">
               </div>
-              <!--           
-              <div class="column col-1">
-                <button class="btn form-inline" type="submit" id="startButton" disabled>Start</button>
-              </div>
-              -->
             </div>
+          </div>
+        </div>
+      </form>
+      <div class="or">
+        <p class='mb-0'>Or…</p>
+      </div>
+      <form id="validateForm">
+        <div class="container pt-2 pb-2 pl-0">
+          <div class="form-group">
+            <label class="form-label" for="validateButton">Validate code on solvedTestcases</label>
+            <button class="btn" type="button" id="validateButton">Validate</button>
           </div>
         </div>
       </form>
