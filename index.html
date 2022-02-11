@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>NYT Day Search</title>
     <link rel="stylesheet" href="spectre.min.css">
+    <link rel="stylesheet" href="spectre-icons.min.css">
     <link rel="stylesheet" href="AppStyles.css">
   </head>
   <body>
@@ -143,7 +144,9 @@
           </div>
         </div>
       </form>
-      <!-- <div id="msgs" class="bg-secondary" style="overflow: hidden"></div> -->
+      <div class="mb-2 mt-2">
+        <button class="btn btn-sm s-circle disen d-invisible tooltip" data-tooltip="Reset window" id="resetButton"><i class="icon icon-refresh"></i></button>
+      </div>
       <div id="msgs" style="overflow: hidden"></div>
       <form name="articleList" id="aList" class="pt-2">
         <div class="form-group" id="aL">

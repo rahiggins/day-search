@@ -98,6 +98,8 @@
 //    ipcMain.on('mainAOT')
 //    ipcMain.on('mainFocus')
 //    ipcMain.on('article-open')
+//    ipcMain.on('dialog-error')
+//    ipcMain.on('reset-window')
 //    app.on('ready')
 //    app.on('will-quit')
 //    app.on('window-all-closed')
@@ -187,6 +189,7 @@ let lastAuthor = null;    // Last author searched at NYT Cooking
 let lastStoredDate;       // Last date stored to ~user/Library/Application Support/day-search
 let dateToSearch;         // YYYY-MM-DD
 let debug = true;         // Used by Log function
+let articlePageIsOpen = false;  // true while an articlePage is open
 
 let writeToTestcase;      // Boolean - write articles to testcaseDateDir?
 let testcaseDateDir;      // ~/Library/Application Support/day-search/testcase/mm-dd-yyyy
@@ -226,6 +229,14 @@ async function connectPup () {
   // Called from createWindow in Mainline
 
   console.log("connectPup: entered");
+
+  // If already connected to Chrome, just exit
+  if (typeof browser != 'undefined') {
+    if (browser.isConnected()) {
+      console.log("Already connected")
+      return 0
+    }
+  }
 
   // Try to obtain the remote-debugging Chrome endpoint.  If successful, connect
   //  puppeteer to the remote-debugging instance of Chrome, create a new page
@@ -357,7 +368,6 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
   //     to set article attributes
   //  - findRecipes: parse the article's HTML to identify embedded recipes
   const { adjustTitle, findRecipes } = require('./lib.js')
-
 
   //
   // Define a function to return the number of results in the search page
@@ -598,7 +608,8 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
       mainWindow.webContents.send('article-display', [JSON.stringify(articles[a]), [articles[a].title], "NYT Cooking"])
     } else {
       // Otherwise, create a new browser page and go to the article to parse it
-      articlePage = await browser.newPage(); 
+      articlePage = await browser.newPage();
+      articlePageIsOpen = true;
       articlePage.setDefaultNavigationTimeout(0);
       await articlePage.waitForTimeout(250); // Wait a quarter sec
 
@@ -663,7 +674,8 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
       articlesDisplayed += await findRecipes($, articles[a], mainWindow)
 
       // Close the article browser page
-      await articlePage.close()
+      await articlePage.close();
+      articlePageIsOpen = false;
 
     }
   }
@@ -685,13 +697,13 @@ async function processDate (dateToSearch) {
   //  for articles containing recipes. Then search the day for certain keywords.
 
   Log("processDate entered with dateToSearch: " + dateToSearch);
-  
+
   // If the NYTCooking window ID is not null, close the existing NYTCooking window
   if (NYTCookingID !== null) {
     Log("Closing existing NYTCooking window")
     BrowserWindow.fromId(NYTCookingID).close();
     NYTCookingID = null;
-    NYTCookingPage.close();
+    await NYTCookingPage.close();
   }
 
   // Initialize array of urls of articles parsed, which is used to skip parsing
@@ -1004,7 +1016,7 @@ async function authorSearch (author, title, all) {
     Log("Closing existing NYTCooking window")
     BrowserWindow.fromId(NYTCookingID).close();
     NYTCookingID = null;
-    NYTCookingPage.close();
+    await NYTCookingPage.close();
   }
   
   if (NYTCookingID == null) {
@@ -1030,12 +1042,12 @@ async function authorSearch (author, title, all) {
 
     // Close button clicked, close the NYTCooking window and
     //  enable buttons in the main window
-    NYTCooking.on('closed', () => {
+    NYTCooking.on('closed', async () => {
       Log("NYTCooking window closed")
       NYTCookingID = null;
       if (!NYTCookingPage.isClosed()) {
         console.log("On NYTCooking window closed - close NYTCookingPage")
-        NYTCookingPage.close();
+        await NYTCookingPage.close();
         mainWindow.webContents.send('enable-searchButtons')
       }
     })
@@ -1275,6 +1287,29 @@ async function mainline () {
       // when you should delete the corresponding element.
       mainWindow = null
     })
+
+  }
+
+  async function closePages() {
+    // On reset-window, close any Chrome tabs
+    console.log("closePages entered")
+
+    console.log("Trying to close NYTCooking page")
+    try {
+      if (!NYTCookingPage.isClosed()) {
+        console.log(" closing NYTCookingPage")
+        await NYTCookingPage.close();
+      }
+    } catch(e) {
+      //console.log("will-quit - NYTCookingPage error - " + e)
+    }
+
+    console.log("Trying to close articlePage")
+    if (articlePageIsOpen) {
+      await articlePage.close();
+      articlePageIsOpen = false;
+    }
+
   }
 
   // Return last date searched to renderer process
@@ -1394,11 +1429,11 @@ async function mainline () {
   })
 
   // Listen for NYTCooking Close button click; close NYTCooking window
-  ipcMain.on('close-NYTCooking', (event, arg) => {
+  ipcMain.on('close-NYTCooking', async (event, arg) => {
     console.log("Request to close NYTCooking window");
     BrowserWindow.fromId(NYTCookingID).close();
     NYTCookingID = null;
-    NYTCookingPage.close();
+    await NYTCookingPage.close();
   })
 
   // Listen for a recipe Search button click; call authorSearch to search
@@ -1454,6 +1489,29 @@ async function mainline () {
     let [title, content] = args
     dialog.showErrorBox(title, content)
   })
+
+  // Handle reset window button 
+  ipcMain.on('reset-window', async () => {
+    console.log("Request to reset the window");
+
+    // Close NYTCookingPage and articlePage
+    await closePages()
+
+    // Close NYTCooking browser window
+    if (NYTCookingID != null) {
+      await BrowserWindow.fromId(NYTCookingID).close();
+      NYTCookingID = null;
+    }
+
+    // Close mainWindow browser window
+    mainWindow.close();
+
+    // Recreate maimWindow browser window
+    await createWindow();
+
+    console.log("Reset-window finished")
+
+  })
   
 
   // This method will be called when Electron has finished
@@ -1485,6 +1543,67 @@ async function mainline () {
       }
     } catch {}
   })
+
+      // Possible improvement on quitting.  Needs try...catch for all 
+      //  puppeteer page operations
+      //app.on('before-quit', async function (event) {
+      //  console.log("On before-quit:")
+      //  try {
+      //    console.log("NYTCookingPage.isClosed(): " +  NYTCookingPage.isClosed());
+      //    NYTCooking = !NYTCookingPage.isClosed()
+      //  } catch(e) {
+      //    console.log("NYTCookingPage error:")
+      //    console.log(e)
+      //    NYTCooking = false
+      //  }
+      //  console.log("articlePage.isClosed(): " +  articlePage.isClosed());
+      //  console.log("articlePageIsOpen: " + articlePageIsOpen)
+      //  console.log("dayPage.isClosed(): " +  dayPage.isClosed());
+      //
+      //  if (NYTCooking || articlePageIsOpen || !dayPage.isClosed()) {
+      //    console.log("before-quit closing pages")
+      //    console.log("NYTCooking: " + NYTCooking)
+      //    console.log("articlePageIsOpen: " + articlePageIsOpen)
+      //    console.log("!dayPage.isClosed(): " + !dayPage.isClosed())
+      //    event.preventDefault()
+        //
+        //
+      //    try {
+      //      if (!NYTCookingPage.isClosed()) {
+      //        console.log(" closing NYTCookingPage")
+      //        await NYTCookingPage.close()
+      //      }
+      //    } catch(e) {
+      //      //console.log("will-quit - NYTCookingPage error - " + e)
+      //    }
+        //
+      //    console.log("Trying to close articlePage")
+      //    if (articlePageIsOpen) {
+      //      await articlePage.close();
+      //      console.log("articlePage.isClosed(): " +  articlePage.isClosed());
+      //      articlePageIsOpen = false;
+      //    }
+        //
+      //    if (!dayPage.isClosed()) {
+      //      console.log(" closing dayPage")
+      //      await dayPage.close()        
+      //      console.log("dayPage.isClosed(): " +  dayPage.isClosed());
+      //    }
+        //
+        //
+      //    // Try to update the last stored date. This will fail if a testcase file was
+      //    //  processed.
+      //    try {
+      //      if (dateToSearch > lastStoredDate || 
+      //        dateToSearch.substr(0,4) < lastStoredDate.substr(0,4)) {
+      //        console.log(" writing lastDateFile")
+      //        fs.writeFileSync(lastDateFile, dateToSearch, "utf8");
+      //        lastStoredDate = dateToSearch
+      //      }
+      //    } catch {}
+      //    app.quit()
+      //  }
+      //})
 
   // Quit when all windows are closed.
   app.on('window-all-closed', function () {

@@ -12,6 +12,7 @@
 //    function addMsg
 //    function remvAllMsg
 //    function removeOr
+//    fucntion showReset
 // 
 //   window.electron.onDisplaySpinner
 //   window.electron.onProgressBar
@@ -56,6 +57,7 @@ let dateForm = document.getElementById('dateForm');
 let fileForm = document.getElementById('fileForm');
 let validateForm = document.getElementById('validateForm');
 let validateButton = document.getElementById('validateButton');
+const resetButton = document.getElementById("resetButton")
 const mL = document.getElementById('msgs');     // messages list div
 const aL = document.getElementById('aList');    // articles list div
 
@@ -139,11 +141,19 @@ function removeOr () {
     while (Ors.length > 0) Ors[0].remove();
 }
 
+function showReset () {
+    resetButton.disabled = true;
+    resetButton.classList.remove('d-invisible')
+    resetButton.addEventListener('click', () => {
+        window.electron.send("reset-window")
+    });
+}
+
 window.electron.onDisplaySpinner( () => {
     // Add a throbber to the page while this app clicks "More" buttons to get the full 
     //  search results
     let loading = document.createElement("div");
-    loading.classList = "loading float-left ml-2"
+    loading.classList = "loading float-left ml-2 mt-2"
     loading.id = "spinner";
     mL.appendChild(loading);
 })
@@ -273,7 +283,7 @@ window.electron.onArticleDisplay( (args) => {
             //  did not expect it
             let classlessArticleNode =  evt.target.cloneNode(true);
             classlessArticleNode.className="";
-            window.electron.clipboardWriteHTML(classlessArticleNode.outerHTML.replace('a class=""', "a" ));
+            window.electron.clipboardWriteHTML(classlessArticleNode.outerHTML.replace(' class=""', "" ));
         } else if (evt.target.tagName == "SMALL") {
             window.electron.clipboardWriteHTML(evt.target.outerHTML);
         } else if (evt.target.tagName == "P" ) {
@@ -771,6 +781,7 @@ async function Mainline() {
         fileForm.remove();
         validateForm.remove()
         removeOr();
+        showReset();
 
         // Remove any previous messages
         remvAllMsg();
@@ -798,6 +809,7 @@ async function Mainline() {
         dateForm.remove();
         validateForm.remove()
         removeOr();
+        showReset();
         let hrefFile = fileInput.files[0].path.replace("html", "txt")
         window.electron.send('process-file', 
             [fileInput.files[0].path,
@@ -815,6 +827,7 @@ async function Mainline() {
         fileForm.remove();
         validateForm.remove()
         removeOr();
+        showReset();
         window.electron.send('process-validate')
     }, false);
 

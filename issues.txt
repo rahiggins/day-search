@@ -9,15 +9,14 @@ For fuzzy matches, verify that the target author is included and all or most nou
 
 For exact matches, verify that Featured Article matches
 
-In renderer.js function displayArticle recipes loop, can Spectre.css column classes replace 
- float-left and {clear: left} divs? 
-    Yes, using class="column col-sm-auto" and class="column col-1"
-
-Or, add <template> elements to index.html for repeated elements such as {clear: left} divs
-
 In lib.js, function adjustParaText, can 'adapted' be handled in one place?
     Is there a better way to count the ingredient units of measure in the
     ingredient match results?
+
+testcase: Change findRecipes to return recipes found, move write to testcase 
+    to after findRecipes
+
+Add a Reset button to index.html; when clicked, close window and reload it 
 
 
 

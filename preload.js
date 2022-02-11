@@ -16,7 +16,7 @@ contextBridge.exposeInMainWorld(
           // whitelist channels
           let validChannels = ['mainAOT', 'article-open', 'author-search', 
                                 'captcha-solved', 'process-date', 'process-file', 
-                                'process-validate', 'dialog-error'];
+                                'process-validate', 'dialog-error', 'reset-window'];
           if (validChannels.includes(channel)) {
               ipcRenderer.send(channel, data);
           }
