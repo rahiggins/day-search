@@ -680,6 +680,9 @@ async function findRecipes($, articleObj, mainWindow, expectedRecipes) {
   //          - an article object
   //          - a reference to the mainWindow
   //          - Optional. For Validate, an array of expected recipe names
+  // Output: Array:
+  //                - 1 if the article was displayed, 0 otherwise,
+  //                - array of recipe names
 
   // If expectedRecipes is not null, the Validate button was clicked.
   //  Returned recipe names will be checked against expected recipe names
@@ -690,6 +693,7 @@ async function findRecipes($, articleObj, mainWindow, expectedRecipes) {
   }
   console.log("findRecipes entered, validating: " + validating)
   
+  // articlesDisplayed is 0 if the article is not displayed, 1 otherwise
   let articlesDisplayed = 0;
 
   // Set articleObj boolean key 'cookingWithTheTimes' as to whether
@@ -756,7 +760,7 @@ async function findRecipes($, articleObj, mainWindow, expectedRecipes) {
     }
   } else {
     // If no 'Yield:' or '1. ' paragraphs, the article has no recipes
-    articleResults = {hasRecipes: false}
+    articleResults = {hasRecipes: false, recipes: []}
   }
 
   if (articleResults.hasRecipes) {
@@ -779,29 +783,32 @@ async function findRecipes($, articleObj, mainWindow, expectedRecipes) {
 
     if (expectedRecipes == null || !validated) {
       Log("Display article: " + articleObj.title)
-      articlesDisplayed++;
+      articlesDisplayed = 1;
       mainWindow.webContents.send('article-display', [JSON.stringify(articleObj), articleResults.recipes, articleResults.type, expectedRecipes])
+    } else {
+      Log("Article not displayed")
     }
 
   } else if (articleObj.cookingWithTheTimes) {
     // If the article is a 'Cooking With The Times' article, display it.
     Log("Displaying TASTINGS article")
-    articlesDisplayed++;
+    articlesDisplayed = 1;
     mainWindow.webContents.send('article-display', [JSON.stringify(articleObj), [], 'Cooking With The Times'])
 
   } else if (articleObj.isBeverage) {
     // If the article is a beverage article (which typicallly don't have
     //  embedded recipes), display it.
     Log("Displaying TASTINGS article")
-    articlesDisplayed++;
+    articlesDisplayed = 1
     mainWindow.webContents.send('article-display', [JSON.stringify(articleObj), [], articleObj.beverageType])
 
   }
 
 
 
-  // Return number of articles displayed - used for evaluating code changes
-  return articlesDisplayed;
+  // Return 1 if the article was displayed, 0 otherwise - used for evaluating code changes -
+  //  and the array of recipe names found
+  return [articlesDisplayed, articleResults.recipes];
 }
 
 module.exports = { adjustTitle, findRecipes };

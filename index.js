@@ -49,7 +49,7 @@
 // The application provides an option to examine a set of reference articles
 //  for recipes and to compare the recipes found to the recipes known to 
 //  be in the article.  For articles where there is a discrepancy between the 
-//  recipes found and the recipies know to exist, both sets of recipes are 
+//  recipes found and the recipies known to exist, both sets of recipes are 
 //  displayed.
 
 // The reference articles are in 
@@ -291,7 +291,9 @@ async function login () {
 function prepArticle(htmlToParseFile, hrefFile) {
   // Prepare article to be examined for recipes by function findRecipes
   // Input: - path of file containing the article's HTML (*.html)
-  //        - path of file containing article's url and optionally, recipes (*.txt)
+  //        - path of file (*.txt) containing:
+  //            -- either the article's url, or
+  //            -- an object specifying the url and an array of its recipes 
   // Output:  - array:
   //            - Cheerio query function based on the article's HTML
   //            - the articleObj for the article
@@ -382,6 +384,24 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
 
     // Return the number of those list items
     return listItems.length;
+  }
+
+  // Create a string representing an object with keys 'url' and 'recipes'
+  //  to be written to testcase
+  function createTestcaseObj(url, recipeArray) {
+    let comma = ","
+    let object = '{\n\n';
+    object += '\t"url":\t"' + url + '",\n\n';
+    object += '\t"recipes":\t[\n\n';
+    let noComma = recipeArray.length - 1;
+    for (let i = 0; i < recipeArray.length; i++) {
+      if (i == noComma) {
+        comma = "";
+      }
+      object += '\t\t\t"' + recipeArray[i] + '"' + comma + '\n'
+    }
+    object += '\n\t\t\t]\n\n}'
+    return object
   }
 
   Log("processSectionOrKeywords entered with url: " + url + ", searchDomain: " + searchDomain);
@@ -661,17 +681,27 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
 
       } while (gotCaptcha)  // Repeat until the article page is returned
 
+      // Call findRecipes, which parses the article's HTML to identify recipes and
+      //  displays those recipes.  The function returns 1 if the article was displayed,
+      //   0 otherwise, and an array of the recipes found.
+      [articleDisplayed, foundRecipes] = await findRecipes($, articles[a], mainWindow)
+      articlesDisplayed += articleDisplayed;
+
       if (writeToTestcase) {
         // If 'Write to testcase' was selected, write the article html and
-        //  the article url to testcaseDateDir 
-        let safeTitle = articles[a].title.replace(/\//g, "\\"); // / => \
-        fs.writeFileSync(testcaseDateDir + safeTitle + ".html", $.html(), "utf8");
-        fs.writeFileSync(testcaseDateDir + safeTitle + ".txt", articles[a].link, "utf8")
-      }
+        //  and object specifying the article url and the recipes found to testcaseDateDir 
 
-      // Call findRecipes, which parses the article's HTML to identify recipes and
-      //  displays those recipes.  The function returns the articles displayed.
-      articlesDisplayed += await findRecipes($, articles[a], mainWindow)
+        // Create a safe filename for the files from the article title
+        let safeTitle = articles[a].title.replace(/\//g, "\\"); // / => \
+
+        // Write the html file to testcaseDateDir 
+        fs.writeFileSync(testcaseDateDir + safeTitle + ".html", $.html(), "utf8");
+
+        // Create the object specifying the article url and the recipes found and
+        //  write it to testcaseDateDir
+        let testcaseObj = createTestcaseObj(articles[a].link, foundRecipes);
+        fs.writeFileSync(testcaseDateDir + safeTitle + ".txt", testcaseObj, "utf8")
+      }
 
       // Close the article browser page
       await articlePage.close();
@@ -1344,81 +1374,85 @@ async function mainline () {
     Log("HTML to parse file: " + htmlToParseFile)
     Log("href file: " + hrefFile)
 
-    //let htmlToParse = fs.readFileSync(htmlToParseFile, "utf8");
-    //let href = fs.readFileSync(hrefFile, "utf8")
-    //    
-    //// href is an object when the file selection is in the solvedTestcases folder
-    //if (typeof href == 'object') {
-    //  let expectedRecipes = href.recipes;
-    //  href = href.url
-    //}
-    //
-    //articles = []; // array of article objects
-    //
-    //// Create a Cheerio query function for the article HTML
-    //$ = cheerio.load(htmlToParse);
-    //// Get title
-    //let title = $('h1').text().trim();
-    //Log("Title: " + title);
-//
-    //// Call adjustTitle to remove prefixes from the title and return an articleObj
-    //let articleObj = adjustTitle(title);
-//
-    //// Add author and href to the object returned by adjustTitle
-//
-    //// The author name can be contained in a <span> element by itself or 
-    ////  preceded by 'By '.  Get the <span> text and nullify 'By ' if it exists.
-    ////articleObj['author'] = $('#story > header > div.css-xt80pu.eakwutd0 > div > div > div > p > span.css-1baulvz.last-byline').text();
-    //articleObj['author'] = $('#story > header > div.css-xt80pu.eakwutd0 > div > div > div > p > span').text().replace('By ', '');
-//
-    //articleObj['link'] = href;
-
-    let [$, articleObj, expectedRecipes] = prepArticle(htmlToParseFile, hrefFile)
+    // Process input files, ignore recipes
+    let [$, articleObj] = prepArticle(htmlToParseFile, hrefFile)
 
     // Call findRecipes, which parses the article's HTML to identify recipes and
-    //  displays those recipes.  The function returns the articles displayed, which
-    //  for testcase will always be 1.
-    let articlesDisplayed = await findRecipes($, articleObj, mainWindow, expectedRecipes);
+    //  display those recipes.
+    await findRecipes($, articleObj, mainWindow);
     mainWindow.webContents.send('enable-searchButtons')
 
   });
 
-  // Handle click on the Validate button
+  // Handle click on the Validate button. Parse testcase articles for recipes and compare
+  //  those to the expected recipes.
+  // The %appPath%/testcase/solvedTestcases directory contains testcases that should be correctly
+  //   parsed for recipes.  
+  // Each testcase is a directory, named mm-dd-yyy, that contains two
+  //  files: <article name>.html and <article name>.txt.
+  // The html file is an article to be parsed for recipes.
+  // The txt file is a string representing an object with keys url and recipes.
+  // The url key specifies the url of the article and is used in the display of the article.
+  // The recipes key specifies an array of recipes expected to be found in the article.
+  // The process-validate routine parses each testcase for recipes and compares the recipes 
+  //  found to the recipes expected.  Testcase where the recipes found differ from the recipes
+  //  expected are displayed.
   ipcMain.on('process-validate', async () => {
     console.log("Process validate received")
 
-    let articlesDisplayed = 0
-
-
-    // Get entries in %appPath%/testcase/solvedTestcases (directories named mm-dd-yyyy)
+    // Keep track of articles displayed. None means all testcases were valid.
+    let articlesDisplayed = 0;
+    
+    // Get entries in %appPath%/testcase/solvedTestcases
     let solvedTestcasesDates = fs.readdirSync(testcase + "/solvedTestcases");
-    for (solvedTestcasesDate of solvedTestcasesDates) {
-      if (!solvedTestcasesDate.startsWith('.')) {
 
-        // Get files in %appPath%/testcase/solvedTestcases/mm-dd-yyyy
-        let solvedTestcaseDatePath = testcase + "/solvedTestcases" + "/" + solvedTestcasesDate
+    // For each entry ...
+    for (solvedTestcasesDate of solvedTestcasesDates) {
+      // ... that matches mm-dd-yyy ...
+      if (solvedTestcasesDate.match(/\d{2}-\d{2}-\d{4}/)) {
+
+        // ... get its files
+        let solvedTestcaseDatePath = testcase + "/solvedTestcases" + "/" + solvedTestcasesDate;
         let solvedTestcaseFiles = fs.readdirSync(solvedTestcaseDatePath)
+
         for (solvedTestcaseFile of solvedTestcaseFiles) {
           if (solvedTestcaseFile.endsWith(".html")) {
-            let solvedTestcaseTxtFile = solvedTestcaseFile.match(/(.*)\.html$/)[1] + '.txt'
-            let htmlToParseFile = solvedTestcaseDatePath + "/" + solvedTestcaseFile
-            let hrefFile = solvedTestcaseDatePath + "/" + solvedTestcaseTxtFile
-            console.log("HTML file: " + htmlToParseFile)
-            console.log("Txt file: " + hrefFile)
+            // For the html file ...
 
-            let [$, articleObj, expectedRecipes] = prepArticle(htmlToParseFile, hrefFile)
-            console.log("on return from prepArticle, expectedRecipes:")
-            console.log(expectedRecipes)
-            articlesDisplayed += await findRecipes($, articleObj, mainWindow, expectedRecipes);
+            // Identify the associated txt file
+            let solvedTestcaseTxtFile = solvedTestcaseFile.match(/(.*)\.html$/)[1] + '.txt'
+
+            // Identify the paths for both files
+            let htmlToParseFile = solvedTestcaseDatePath + "/" + solvedTestcaseFile
+            let txtFile = solvedTestcaseDatePath + "/" + solvedTestcaseTxtFile
+            console.log("HTML file: " + htmlToParseFile)
+            console.log("Txt file: " + txtFile)
+
+            // Process the two input files, returning a Cheerio query function, an article object and              
+            //  and array of the expected recipes
+            let [$, articleObj, expectedRecipes] = prepArticle(htmlToParseFile, txtFile);
+
+            // Call findRecipes to parse the article for recipes, to compare the found recipes
+            //  to the expeced recipes, and to display the article if thefound and expected recipes
+            //  deviate.
+            // Returns 1 if the deviant article was displayed, 0 oterwise
+            let [deviantArticlesDisplayed] = await findRecipes($, articleObj, mainWindow, expectedRecipes);
+
+            // Accumulate the number of deviant articles
+            articlesDisplayed += deviantArticlesDisplayed
           }
         }
       }
     }
-    // If articlesDisplayed is zero, tell renderer.js 
-    //  to display all valid msg
+
+    // If no articles were deviant, tell renderer.js 
+    //  to display an 'all valid' msg
     if (articlesDisplayed == 0) {
       mainWindow.webContents.send('validate-successful');
     }
+
+    mainWindow.webContents.send('process-end')
+
   })
 
   // Listen for NYTCooking Stop button click

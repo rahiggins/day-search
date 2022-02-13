@@ -240,11 +240,14 @@ window.electron.onKeywordDiv( (arg) => {
 })
 
 window.electron.onProcessEnd( () => {
-    // At the end of processing a date, enable all  buttons
+    // At the end of processing a date or Validate, enable all  buttons
     Log("process-end received")
     
-    // First, remove the progress bar
-    document.getElementById('Pbar').remove();
+    // First, remove the progress bar, if there is one
+    let pbar = document.getElementById('Pbar');
+    if (pbar) {
+        pbar.remove()
+    }
     
     // Then, enable inputs
     startButton.disabled = false;
@@ -700,7 +703,7 @@ window.electron.onCaptchaDetected( () => {
 
 })
 
-// Display "no Validate deviations" message
+// Display "all as expected" message
 window.electron.onValidateSuccessful( () => {
     let msg = "All results were as expected"
     addMsg(mL, msg, { color: "text-success"})
