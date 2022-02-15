@@ -2,7 +2,7 @@ Validate issues:
 
 --------------------------------------------------------------------------------
 
-The titleMatch processing in adjustTitle (lin.js) needs review.  The wild population of titles
+The titleMatch processing in adjustTitle (lib.js) needs review.  The wild population of titles
  should be inventoried.
 
 For fuzzy matches, verify that the target author is included and all or most nouns are present
@@ -12,6 +12,7 @@ For exact matches, verify that Featured Article matches
 In lib.js, function adjustParaText, can 'adapted' be handled in one place?
     Is there a better way to count the ingredient units of measure in the
     ingredient match results?
+
 
 
 

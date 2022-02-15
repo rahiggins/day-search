@@ -347,7 +347,16 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
       let paraText = adjustParaText($(paras[i]).text());
       Log("ingredientFound: " + ingredientFound + " numFound: " + numFound)
       if (paraText == '') {
-        Log("Empty paragraph text skipped")
+        Log("Empty paragraph text skipped - accumRecipeName reset")
+
+        // Added for 3/21/1999 'Bait and Switch' - (Adapted ... ) is split across
+        //  multiple <p> elements; the <p> elements following the first one
+        //  (that contains '(Adapted') were accumulated and appended to the 
+        //  recipe name.  The first <p> element is rendered null by adjustParaText().
+        //  Clear accumRecipeName upon a null <p> element to prevent appending
+        //  these (Adapted .. ) fragments to the recipe name.
+        Log("accumRecipeName reset due to empty paragraph text")
+        accumRecipeName = ""
         continue
       }
 
