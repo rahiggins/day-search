@@ -793,7 +793,9 @@ async function findRecipes($, articleObj, mainWindow, expectedRecipes) {
     if (expectedRecipes == null || !validated) {
       Log("Display article: " + articleObj.title)
       articlesDisplayed = 1;
-      mainWindow.webContents.send('article-display', [JSON.stringify(articleObj), articleResults.recipes, articleResults.type, expectedRecipes])
+      if (mainWindow != null) {
+        mainWindow.webContents.send('article-display', [JSON.stringify(articleObj), articleResults.recipes, articleResults.type, expectedRecipes]);
+      }
     } else {
       Log("Article not displayed")
     }
@@ -802,18 +804,20 @@ async function findRecipes($, articleObj, mainWindow, expectedRecipes) {
     // If the article is a 'Cooking With The Times' article, display it.
     Log("Displaying TASTINGS article")
     articlesDisplayed = 1;
-    mainWindow.webContents.send('article-display', [JSON.stringify(articleObj), [], 'Cooking With The Times'])
+    if (mainWindow != null) {
+      mainWindow.webContents.send('article-display', [JSON.stringify(articleObj), [], 'Cooking With The Times'])
+    }
 
   } else if (articleObj.isBeverage) {
     // If the article is a beverage article (which typicallly don't have
     //  embedded recipes), display it.
     Log("Displaying TASTINGS article")
     articlesDisplayed = 1
-    mainWindow.webContents.send('article-display', [JSON.stringify(articleObj), [], articleObj.beverageType])
+    if (mainWindow != null) {
+      mainWindow.webContents.send('article-display', [JSON.stringify(articleObj), [], articleObj.beverageType])
+    }
 
   }
-
-
 
   // Return 1 if the article was displayed, 0 otherwise - used for evaluating code changes -
   //  and the array of recipe names found
