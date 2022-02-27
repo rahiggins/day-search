@@ -684,10 +684,11 @@ function adjustTitle(title) {
 }
 
 async function findRecipes($, articleObj, mainWindow, expectedRecipes) {
-  // Find recipes in an article page
+  // Find recipes in an article page and displays the article and recipes
   //  Input:  - Cheerio query function based on page HTML
   //          - an article object
-  //          - a reference to the mainWindow
+  //          - Optional. A reference to the mainWindow; if omitted,
+  //            the article is not displayed
   //          - Optional. For Validate, an array of expected recipe names
   // Output: Array:
   //                - 1 if the article was displayed, 0 otherwise,
