@@ -3,6 +3,7 @@
 
 // The functions in the file are:
 //  - Log
+//  - getAuthor
 //  - recipeParse
 //    - adjustParaText
 //  - para
@@ -10,9 +11,9 @@
 //  - findRecipe
 
 // These functions are called from the index.js process, which requires
-//  adjustTitle and findRecipe
+//  getAuthor, adjustTitle and findRecipe
 
-// index.js calls adjustTitle and findRecipe
+// index.js calls getAuthor, adjustTitle and findRecipe
 
 // findrecipe calls recipeParse, which calls adjustParaText and para
 
@@ -64,6 +65,13 @@ Array.prototype.equals = function (array) {
 // Hide method from for-in loops
 Object.defineProperty(Array.prototype, "equals", {enumerable: false});
 
+function getAuthor ($) {
+  // Get authir name from aritcle
+  // Input: Cheerio query function based on article HTML
+  // Output: Author name, string
+  return $('#story > header > div.css-xt80pu.eakwutd0 > div > div > div > p > span').text().replace('By ', '');
+}
+
 function recipeParse(demarcation, $, paras, arr, articleObj) {
   // Parse article page text for recipe names
   // Called by: findRecipe
@@ -80,9 +88,11 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
   //  -  beverageType (wine, beer, etc)
   // Output: articleResults object - 
   //         {
-  //            hasRecipes: boolean
+  //            hasRecipes: boolean,
   //            recipes: array of recipe names,
-  //            type: 'Article' | 'Pairing' | 'beverage type' | 'Recipe'
+  //            type: 'Article' | 'Pairing' | 'beverage type' | 'Recipe',
+  //            hasFragmentedTitle: boolean,
+  //            hasUnquantifiedIngredient: boolean
   //         } 
   //
   // Each element of the 'demarcations' array corresponds to a recipe.
@@ -105,10 +115,10 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
   //
   //  Because recipe names can be split between consecutive <p> elements
   //   and because definitive identification of a recipe name depends on
-  //   encountering a subsequent terminating <p> element, the variable
-  let accumRecipeName;
+  //   encountering a subsequent terminating <p> element, the array
+  let accumRecipeName = [];
   //   is used to accumulate recipe name fragments before being assigned as
-  //   the recipe name.    
+  //   the recipe name.   
 
   Log("recipeParse entered")
   Log(" arr: " + arr);
@@ -124,6 +134,8 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     
   let recipeNameArray = [];
   let recipeNameIsArticleTitle = false;
+  let hasUnquantifiedIngredient = false;
+  let hasFragmentedTitle = false;
   let ingredientFound;
   let numFound;
 
@@ -287,7 +299,10 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
           //  empty the recipe name accumulator
           ingredientFound = true;
           numFound = true;
-          accumRecipeName = "";
+          if (accumRecipeName.length != 0) {
+            console.log("accumRecipeName is not empty: " + accumRecipeName)
+          }
+          accumRecipeName = [];
           Log("Ingredients found, accumRecipeName reset");
 
         }
@@ -322,7 +337,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     recipeName = "Recipe Name not found";
 
     // Empty the recipe name accumulator.  
-    accumRecipeName = "";
+    accumRecipeName = [];
 
     // (01/31/2001: Ahi Katsu with Wasabi Ginger Sauce - 
     //   recipe name as title, not marked Recipe. Distinguish from FOOTNOTES
@@ -356,7 +371,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
         //  Clear accumRecipeName upon a null <p> element to prevent appending
         //  these (Adapted .. ) fragments to the recipe name.
         Log("accumRecipeName reset due to empty paragraph text")
-        accumRecipeName = ""
+        accumRecipeName = []
         continue
       }
 
@@ -379,15 +394,19 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
         if (paraText == "RECIPES") {
           
           // …the recipe name is the previously accumulated recipe name
-          recipeName = accumRecipeName
+          recipeName = accumRecipeName.join(' ')
+          hasFragmentedTitle = hasFragmentedTitle || accumRecipeName.length > 1;
           // Reset the accumulation and exit the find-recipe-name loop
-          accumRecipeName = ""
+          accumRecipeName = []
           break
         } else {
           
+         // otherwise accumulate the <p> element's text and continue with the 
           // otherwise accumulate the <p> element's text and continue with the 
+         // otherwise accumulate the <p> element's text and continue with the 
           //  next <p> element
-          accumRecipeName = paraText + " " + accumRecipeName;
+          console.log("Prepending " + paraText + " to accumRecipeName")
+          accumRecipeName = [paraText].concat(accumRecipeName);
           continue
         }
       }
@@ -402,7 +421,12 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
       //  then continue with the next <p> element
       if (p.isNum && (demarcation == 'yield' || !p.isInstr)) {
         numFound = true;
-        accumRecipeName = "";
+        if (accumRecipeName.length != 0) {
+          console.log("accumRecipeName is not empty: " + accumRecipeName)
+          hasUnquantifiedIngredient = true;
+          console.log("hasUnquantifiedIngredient = true")
+        }
+        accumRecipeName = [];
         if (!p.isInstr) {
           // If not an instruction, then note that it's an ingredient
           ingredientFound = true;
@@ -418,8 +442,11 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
         } else {
           c = 'time'
         }
+        if (accumRecipeName.length != 0) {
+          console.log("accumRecipeName is not empty: " + accumRecipeName)
+        }
         Log(c + " - accumRecipeName reset");
-        accumRecipeName = "";
+        accumRecipeName = [];
         continue
       }
 
@@ -444,13 +471,13 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
       }
 
       // Finally ...
-      if (((p.punct)  && accumRecipeName != "") || p.isYield) {
+      if (((p.punct)  && accumRecipeName.length != 0) || p.isYield) {
         // If this <p> element contains terminal puncuation and
         //  accumRecipeName is not empty
         // Or if this <p> element contains "Yield:",
         Log("Terminal punct and accumRecipeName or Yield:");
 
-        if (p.isYield && accumRecipeName == '') {
+        if (p.isYield && accumRecipeName.length == 0) {
           // If 'Yield:' encountered and accumRecipeName is empty, 
           //  set the recipe name from the subsequent <p> element
           let subsequentParaText = adjustParaText($(paras[i+1]).text())
@@ -459,12 +486,17 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
 
         } else {
           // When this <p> element contains terminal puncuation and
-          //  accumRecipeName is not empty, then set the recipe name to accumRecipeName 
-          recipeName = accumRecipeName;
+          //  accumRecipeName is not empty, then set the recipe name to accumRecipeName
+          console.log("terminal punct & accumRecipeName not empty")
+          console.log("hasFragmentedTitle: " + hasFragmentedTitle)
+          console.log("accumRecipeName length: " + accumRecipeName.length.toString())
+          recipeName = accumRecipeName.join(' ');
+          hasFragmentedTitle = hasFragmentedTitle || accumRecipeName.length > 1;
+          Log("Recipe name set to accumRecipeName, hasFragmentedTitle: " + hasFragmentedTitle)
         }
 
         // Clear accumRecipeName and exit the loop
-        accumRecipeName = "";
+        accumRecipeName = [];
         break
 
       } else if (p.punct) {
@@ -480,7 +512,9 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
         // then prepend this <p> element to accumRecipeName and
         //  continue with the next <p> element
         Log("numFound so para concatenated");
-        accumRecipeName = paraText + " " + accumRecipeName;
+        console.log("Prepending " + paraText + " to accumRecipeName")
+        accumRecipeName = [paraText].concat(accumRecipeName);
+        Log("accumRecipeName length: " + accumRecipeName.length.toString())
       }
 
     }
@@ -490,9 +524,10 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     //Log("Title paragraph number: " + i.toString())
     Log("isRecipe: " + articleObj.isRecipe)
     Log("accumRecipeName: " + accumRecipeName)
-    if (accumRecipeName !== "" && !articleObj.isRecipe) {
+    if (accumRecipeName.length != 0 && !articleObj.isRecipe) {
       Log("Recipe name set to accumRecipeName")
-      recipeName = accumRecipeName;
+      recipeName = accumRecipeName.join(' ');
+      hasFragmentedTitle = hasFragmentedTitle || accumRecipeName.length > 1;
     }
     Log("Initial recipe name: " + recipeName)
     // console.log("Recipe name split: " + recipeName.split(/\(*.*adapted/i))
@@ -550,7 +585,9 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
   return {
       hasRecipes: recipeNameArray.some( (name) => {return name != "Recipe Name not found"} ),
       recipes: recipeNameArray,
-      type: type
+      type: type,
+      hasFragmentedTitle: hasFragmentedTitle,
+      hasUnquantifiedIngredient: hasUnquantifiedIngredient
   }
 }
 
@@ -579,7 +616,7 @@ function para(text) {
       isYield: words[0] === "Yield:",
       colon: (words[0].endsWith(":") && !words[0].startsWith("Yield")) || text.endsWith(":"),
       allCAPS: (text === text.toUpperCase() && text != ''),
-      ad: words[0] === "Advertisement",
+      ad: words[0] === "Advertisement", 
       adapted: words[0].search(/Adapted/i) > -1,
       //punct: text.match(/[\.\,\?!\"\')]$/) != null,
       punct: text.match(/[\.\?!]$/) != null,
@@ -590,7 +627,7 @@ function para(text) {
 
 function adjustTitle(title) {
   // Adjust the title, if necessary
-  console.log("testcase version of findRecipes entered")
+  console.log(__filename + " version of findRecipes entered")
   Log("adjustTitle entered with: " + "'" + title + "'");
   // Initialize article type attributes
   let isPairing = false;
@@ -820,9 +857,11 @@ async function findRecipes($, articleObj, mainWindow, expectedRecipes) {
 
   }
 
-  // Return 1 if the article was displayed, 0 otherwise - used for evaluating code changes -
-  //  and the array of recipe names found
-  return [articlesDisplayed, articleResults.recipes];
+  // Return 1 if the article was displayed, 0 otherwise - used for evaluating code changes,
+  //  the array of recipe names found,
+  //  a boolean indicating unquantified ingredients
+  // return [articlesDisplayed, articleResults.recipes];
+  return [articlesDisplayed, articleResults];
 }
 
-module.exports = { adjustTitle, findRecipes };
+module.exports = { getAuthor, adjustTitle, findRecipes };

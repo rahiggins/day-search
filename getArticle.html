@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Get NYT Food Articles</title>
+    <link rel="stylesheet" href="spectre.min.css">
+    <link rel="stylesheet" href="spectre-icons.min.css">
+    <link rel="stylesheet" href="AppStyles.css">
+  </head>
+  <body>
+    <div class=""container">
+      <div class="columns ml-2 mt-2">
+        <div class="column col-10 ml-2 mt-2">
+          <p id="dateP" class="mb-0"></p>
+          <!-- Textareas and checkboxes -->
+          <div class="form-group">
+            <label class="form-label" for="articleTitle">Article</label>
+            <textarea class="form-input" id="articleTitle" readonly rows="1"></textarea>
+            <label class="form-label" for="expectedRecipes">Recipes</label>
+            <textarea class="form-input" id="expectedRecipes" rows="3"></textarea>
+            <label class="form-checkbox form-inline">
+              <input type="checkbox" id="hasArticleClass">
+              <i class="form-icon"></i> hasArticleClass
+            </label>
+            <label class="form-checkbox form-inline">
+              <input type="checkbox" id="hasTitlePunct">
+              <i class="form-icon"></i> hasTitlePunct
+            </label>
+            <label class="form-checkbox form-inline">
+              <input type="checkbox" id="isNotSolved">
+              <i class="form-icon"></i> isNotSolved
+            </label>
+            <label class="form-checkbox form-inline">
+              <input type="checkbox" id="hasUnquantifiedIngredient">
+              <i class="form-icon"></i> hasUnquantifiedIngredient
+            </label>
+            <label class="form-checkbox form-inline">
+              <input type="checkbox" id="hasFragmentedTitle">
+              <i class="form-icon"></i> hasFragmentedTitle
+          </div>
+          <!-- Buttons -->
+          <div class="columns col-oneline mt-2">
+            <div class="column col-1 col-ml-auto">
+              <button class="btn btn-sm" id="skipButton">Skip</button>
+            </div>
+            <div class="column col-1">
+              <button class="btn btn-sm" id="saveButton">Save</button>
+            </div>
+            <div class="column col-2">
+              <button class="btn btn-sm" id="saveQuitButton">Save and quit</button>
+            </div>
+            <div class="column col-1">
+              <button class="btn btn-sm" id="quitButton">Quit</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="./getArticle-renderer.js"></script>
+  </body>
+</html>

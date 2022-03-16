@@ -2,12 +2,18 @@
 /fonts
 /node_modules
 /package-lock.json
+articles-startObj.txt
+curr-lib.js
 eslintrc.json
+forward-lib.js
 issues.txt
 NYTcore.min.css
 NYTstyles.css
+pre-accum-testcase-lib.js
 spectre.min.css
 spectre-icons.min.css
+startObj copy.txt
+startObj.txt
 /.vscode
 *.bak
 old-lib.js

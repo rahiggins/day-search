@@ -684,7 +684,8 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
       // Call findRecipes, which parses the article's HTML to identify recipes and
       //  displays those recipes.  The function returns 1 if the article was displayed,
       //   0 otherwise, and an array of the recipes found.
-      [articleDisplayed, foundRecipes] = await findRecipes($, articles[a], mainWindow)
+      [articleDisplayed, articleResults] = await findRecipes($, articles[a], mainWindow)
+      foundRecipes = articleResults.recipes;
       articlesDisplayed += articleDisplayed;
 
       if (writeToTestcase) {
