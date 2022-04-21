@@ -10,6 +10,7 @@ issues.txt
 NYTcore.min.css
 NYTstyles.css
 pre-accum-testcase-lib.js
+dbCompare.js
 spectre.min.css
 spectre-icons.min.css
 startObj copy.txt
@@ -18,3 +19,4 @@ startObj.txt
 *.bak
 old-lib.js
 index copy.html
+validate*

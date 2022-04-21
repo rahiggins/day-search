@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Replay article parse</title>
+    <link rel="stylesheet" href="spectre.min.css">
+    <link rel="stylesheet" href="spectre-icons.min.css">
+    <link rel="stylesheet" href="AppStyles.css">
+  </head>
+  <body>
+    <div class=""container">
+
+      <div class="columns ml-2 mt-2">        
+        <div class="column col-10 ml-2 mt-2">
+          <form class="form-hortizontal">
+            <div class="form-group">
+              <div class="column col-auto float-left">
+                <label class="form-label" for="seq">Table row</label>
+              </div>
+              <div class="column col-1 float-left">
+                <input class="form-input" type="text" id="seq" placeholder="seq">
+              </div>
+              <div class="column col-auto float-left">
+                <button class="btn btn=small" id="replayButton">Replay</button>
+              </div>
+              <div class="column col-4 float-left">
+                <label class="form-switch">
+                  <input type="checkbox" id="testcase" checked>
+                  <i class="form-icon"></i>Use testcase-lib.js
+                </label>
+              </div>  
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="columns ml-2 mt-2">   
+        <div class="column col-10 ml-2 mt-2">
+          <p id="dateP" class="mb-0"></p>
+          <!-- Textareas and checkboxes -->
+          <div class="form-group">
+            <label class="form-label" for="articleTitle">Article</label>
+            <textarea class="form-input" id="articleTitle" readonly rows="1"></textarea>
+            <label class="form-label" for="expectedRecipes">Recipes</label>
+            <textarea class="form-input" id="expectedRecipes" rows="3"></textarea>
+            <label class="form-checkbox form-inline">
+              <input type="checkbox" id="hasArticleClass">
+              <i class="form-icon"></i> hasArticleClass
+            </label>
+            <label class="form-checkbox form-inline">
+              <input type="checkbox" id="hasTitlePunct">
+              <i class="form-icon"></i> hasTitlePunct
+            </label>
+            <label class="form-checkbox form-inline">
+              <input type="checkbox" id="isNotSolved">
+              <i class="form-icon"></i> isNotSolved
+            </label>
+            <label class="form-checkbox form-inline">
+              <input type="checkbox" id="hasUnquantifiedIngredient">
+              <i class="form-icon"></i> hasUnquantifiedIngredient
+            </label>
+            <label class="form-checkbox form-inline">
+              <input type="checkbox" id="hasFragmentedTitle">
+              <i class="form-icon"></i> hasFragmentedTitle
+          </div>
+      </div>
+    </div>
+    <script src="./replay-renderer.js"></script>
+  </body>
+</html>

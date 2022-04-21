@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "start": "electron .",
-    "get": "electron getArticle.js"
+    "get": "electron getArticle.js",
+    "replay": "electron replay.js",
+    "validate": "electron validate.js"
   },
   "author": "Me",
   "license": "ISC",
