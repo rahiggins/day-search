@@ -299,8 +299,7 @@ async function mainline() {
         seq++
 
         // Insert the article and its associated information into the database
-        //let sql = `INSERT INTO articles
-        let sql = `INSERT INTO testArticles 
+        let sql = `INSERT INTO articles 
         (seq, date, Name, URL, hasArticleClass, hasTitlePunct, isNotSolved, hasFragmentedTitle, hasUnquantifiedIngredient, discoveredRecipes, expectedRecipes, html) 
         VALUES ('${seq}', '${date}', '${articleInfo.name.replace(/'/g, "\\'")}', '${articleInfo.URL}', '${bx(articleResponse.hasArticleClass)}', '${bx(articleResponse.hasTitlePunct)}', '${bx(articleResponse.isNotSolved)}', '${bx(articleResponse.hasFragmentedTitle)}', '${bx(articleResponse.hasUnquantifiedIngredient)}', '${articleInfo.recipes.replace(/'/g, "\\'")}', '${articleResponse.expectedRecipes.replace(/'/g, "\\'")}', '${html.replace(/'/g, "\\'")}' )`
         try {

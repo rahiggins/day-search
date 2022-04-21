@@ -72,9 +72,9 @@ async function saveArticle() {
         hasTitlePunct: hasTitlePunctCB.checked,
         isNotSolved: isNotSolved,
         //hasFragmentedTitle: articleInfo.hasFragmentedTitle,
-        hasFragmentedTitle: hasUnquantifiedIngredientCB.checked,
+        hasFragmentedTitle: hasFragmentedTitleCB.checked,
         //hasUnquantifiedIngredient: articleInfo.hasUnquantifiedIngredient
-        hasUnquantifiedIngredient: hasFragmentedTitleCB.checked,
+        hasUnquantifiedIngredient: hasUnquantifiedIngredientCB.checked,
         expectedRecipes: expectedRecipes
     }
     //if (hasArticleClassCB.checked != articleInfo.hasArticleClass) {
