@@ -23,7 +23,7 @@
 // All functions call Log
 
 
-const debug = true; // Used by function Log
+const debug = false; // Used by function Log
 
 // Define a regular expression that matches 
 //  'Yield:', 'blah blah Serves', 'Makes 2' and 'Makes about 2'
@@ -82,7 +82,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
   // Parse article page text for recipe names
   // Called by: findRecipe
   // Input:
-  //  - Name of demarcation in the passed array, "instr" or "end"
+  //  - Name of demarcation in the passed array, "instr" or "end" or "servesMakes"
   //  - Cheerio function bound to the article HTML
   //  - Array of the <p> elements in the article (Cheerio objects)
   //  - Array of indices of the paras array that are recipe demarcations
@@ -142,8 +142,13 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
   let recipeNameIsArticleTitle = false;
   let hasUnquantifiedIngredient = false;
   let hasFragmentedTitle = false;
-  let ingredientFound;
-  let numFound;
+  let ingredientFound = false;
+  let numFound = false;
+
+  if (demarcation == 'servesMakes') {
+    ingredientFound = true;
+    numFound = true;
+  }
 
   function adjustParaText(paraText) {
     // Adjust <p> element text before determining whether it's a recipe name
@@ -162,13 +167,15 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     //  - Remove '(... adapted ...)' phrases
     Log("adjustParaText called with -")
     Log(paraText)
+    Log("ingredientFound: " + ingredientFound)
 
     // Array of ingredient units of measurement
     const unitsOfMeasurement = [
       "pinch", "teaspoon", "tablespoon", "cup", "pint", "quart", "gallon",
       "small", "medium", "large",
       "pound", "ounce", "gram",
-      "inch", 
+      "inch", "piece",
+      "onion", "potato", "zucchini", 
       "clove", "bunch", "sprig", "sheet", "handful", "pinch"
     ]
 
@@ -180,35 +187,40 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     // Define local para() output - paragraph text characteristics
     let pCharacteristics;
     
-    // Occasionally, the paragraph preceding the recipe name ends with
-    //  the author name, preventing that paragraph's terminal puncuation 
-    //  from being detected.
-    // Remove the author name, if it exists.
+    // If the article specifies an author ...
+    if (articleObj.author.length > 0) {
+      // Occasionally, the paragraph preceding the recipe name ends with
+      //  the author name, preventing that paragraph's terminal puncuation 
+      //  from being detected.
+      // Remove the author name, if it exists.
 
-    // Create a RegExp to match (case-insensitive) the author name at the end
-    //  of the paragraph text (possibly preceded by spaces and dashes) and 
-    //  capture the text preceding the name (and possibly spaces and dashes).
-    let rx = new RegExp('(.*?)(\\s*-*\\s*)?' + articleObj.author + '$', 'i');
+      // Create a RegExp to match (case-insensitive) the author name at the end
+      //  of the paragraph text (possibly preceded by spaces and dashes) and 
+      //  capture the text preceding the name (and possibly spaces and dashes).
 
-    // Look for a match
-    let m = paraText.match(rx);
+      console.log("adjustParaText - author: '" + articleObj.author + "'")
+      let rx = new RegExp('(.*?)(\\s*-*\\s*)?' + articleObj.author + '$', 'i');
 
-    // If there is a match, ...
-    if (m != null) {
+      // Look for a match
+      let m = paraText.match(rx);
 
-        // ... set the paragraph text to the capture group, trimmed
-        paraText = m[1].trim()
-        Log('Author name removed from <p> element');
+      // If there is a match, ...
+      if (m != null) {
 
-        // Characterize the text
-        pCharacteristics = para(paraText);
+          // ... set the paragraph text to the capture group, trimmed
+          paraText = m[1].trim()
+          Log('Author name removed from <p> element');
 
-        // If the adjusted paragraph text ends with terminal punctuation, 
-        //  return to the caller
-        if (pCharacteristics.punct) {
-          return paraText;
-        }
+          // Characterize the text
+          pCharacteristics = para(paraText);
 
+          // If the adjusted paragraph text ends with terminal punctuation, 
+          //  return to the caller
+          if (pCharacteristics.punct) {
+            return paraText;
+          }
+
+      }
     }
 
     // Occasionally, paragraph text ends with apostrophes, double apostrophes,
@@ -375,10 +387,12 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     }
 
     // Occaisionally, the ingredients list is partitioned by phrases like
-    //  'For the _:' (e.g For the dough:).  Discard such text.
-    let forThe = paraText.match(/(for the.*:\s?)/i);
+    //  'For the _:' (e.g For the dough:).  These phrases occur at the 
+    //  beginning of a paragraph.  Sometimes the word 'the' is omitted.
+    //  Discard such text.
+    let forThe = paraText.match(/^(for (the)*.*:\s?)/i);
     if (forThe != null) {
-      Log("'For the x:' discarded")
+      Log("'" + forThe[0] + "'" + " paragraph discarded")
       //paraText = paraText.slice(forThe[1].length).trim();
       paraText = ''
     }
@@ -421,9 +435,14 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     // (01/31/2001: Ahi Katsu with Wasabi Ginger Sauce - 
     //   recipe name as title, not marked Recipe. Distinguish from FOOTNOTES
     //   by ingredientFound
-    ingredientFound = false;
 
-    numFound = false; // Don't concat paras until a numeral-started paragraph is found
+    if (demarcation != "servesMakes") {
+      // If the demarcation is 'servesMakes', ingredientsFound and
+      //  numFound should always be true.  Otherwise, reset those to 
+      //  false for each recipe marker
+      ingredientFound = false;
+      numFound = false; // Don't concat paras until a numeral-started paragraph is found
+    }
 
     // Walk back through <p> elements preceeding the recipe marker, 
     //  "endOfRecipeRx" or "1. ", examining each to identify the recipe name
@@ -463,9 +482,16 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
       Log("Paragraph " + i.toString() + " text: " + paraText.substr(0,40));
       Log(" words: " + p.words + ", isNum: " + p.isNum + ", isInstr: " + p.isInstr);
       Log(" isEndOfRecipe: " + p.isEndOfRecipe + ", colon: " + p.colon + ", allCAPS: " + p.allCAPS);
-      Log(" ad: " + p.ad + ", adapted: " + p.adapted + ", punct: " + p.punct);
+      Log(" skip: " + p.skip + ", adapted: " + p.adapted + ", punct: " + p.punct);
       Log(" time: " + p.time)
 
+      // Skip paragraph based on its first word: 
+      //  "Advertisement", "Serves", "Makes"
+      if (p.skip) {
+        console.log("Skipping paragraph, first word: " + paraText.split(/\s+/g)[0])
+        continue
+      }
+      
       // All uppercase is a recipe name
       if (p.allCAPS) {
         Log("allCAPS");
@@ -553,7 +579,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
       }
 
       // Finally ...
-      if (((p.punct)  && accumRecipeName.length != 0) || p.isEndOfRecipe) {
+      if (((p.punct || p.isInstr)  && accumRecipeName.length != 0) || p.isEndOfRecipe) {
         // If this <p> element contains terminal puncuation and
         //  accumRecipeName is not empty
         // Or if this <p> element matches the endOfRecipeRx regular expression,
@@ -665,7 +691,7 @@ function para(text) {
   //  colon: true if the first word ends with ':' but is not Yield: or
   //           the paragraph text ends with ':'
   //  allCAPS: true if all letters are capital letters
-  //  ad: true if first word is "Advertisement" 
+  //  skip: true if first word is "Advertisement", "Serves", "Makes"
   //  adapted: true if first word includes (case-insensitive) "Adapted"
   //  punct: true if the paragraph ends with a period, comma, question mark,
   //          exclamation point, apostrophe, quote or right parenthesis.
@@ -673,8 +699,6 @@ function para(text) {
 
   let words = text.split(/\s+/g); // Split text by whitespace characters–
   
-  // >>---> words[0] == "Serves" or "Makes" should be skipped like "Advertisement",
-  //  call it 'skip' ?
   return {
       words: words.length,
       isNum: Number.isInteger(parseInt(text.substr(0,1))),
@@ -682,7 +706,7 @@ function para(text) {
       isEndOfRecipe: text.match(endOfRecipeRX) != null,
       colon: (words[0].endsWith(":") && !words[0].startsWith("Yield")) || text.endsWith(":"),
       allCAPS: (text === text.toUpperCase() && text != ''),
-      ad: words[0] === "Advertisement", 
+      skip: ['Advertisement', 'Serves', 'Makes'].includes(words[0]),
       adapted: words[0].search(/Adapted/i) > -1,
       //punct: text.match(/[\.\,\?!\"\')]$/) != null,
       punct: text.match(/[\.\?!]$/) != null,
@@ -837,6 +861,7 @@ async function findRecipes($, articleObj, mainWindow, expectedRecipes) {
   //  'Correction:' paragraph.
   let endPara = [];
   let instrPara = [];
+  let servesMakesPara = [];
   let correctPara = [];
   $(paras).each( function(k, elem) {
     //Log("Para " + k.toString() + " starts with: " + $(this).text().substr(0, 10))
@@ -847,6 +872,10 @@ async function findRecipes($, articleObj, mainWindow, expectedRecipes) {
       if ($(this).text().trim().startsWith("1. ")) {
           //Log("Pushed 1. para")
           instrPara.push(k)
+      }
+      if ($(this).text().trim().match(/^(Serves|Makes(\sabout)*)\s\d/) != null) {
+        //Log("Pushed servesMakes para")
+        servesMakesPara.push(k)
       }
       if ($(this).text().trim().match(/correction:/i) != null) {
           //Log("Pushed Correction para")
@@ -876,6 +905,10 @@ async function findRecipes($, articleObj, mainWindow, expectedRecipes) {
   // Get the number of endOfRecipe paragraphs and of '1. ' paragraphs
   let endRecipes = endPara.length; // endOfRecipe paragraphs
   let instrRecipes = instrPara.length; // '1. ' paragraphs
+  let servesMakesRecipes = servesMakesPara.length; // Serves|Makes paragraph
+  console.log("endRecipes: " + endRecipes.toString())
+  console.log("instrRecipes: " + instrRecipes.toString())
+  console.log("servesMakesRecipes: " + servesMakesRecipes.toString())
   if (endRecipes == instrRecipes) {
     // If those numbers are the same...
     Log("Recipes: " + endRecipes.toString());
@@ -889,16 +922,21 @@ async function findRecipes($, articleObj, mainWindow, expectedRecipes) {
   // Sometimes, recipe instruction steps aren't numbered (?)
   // In order to identify recipes, use the more numerous marker.
   //  If both markers are equal, use the first instruction step marker
-  if (instrRecipes > 0 || endRecipes > 0) {
+  if (instrRecipes > 0 || endRecipes > 0 || servesMakesRecipes > 0) {
     // If any '1. ' or 'endOfRecipe' paragraphs were found, parse the article
     //  for recipes.
-    if (instrRecipes >= endRecipes) {
-      // If '1. ' paragraphs are as or more numerous than 'endOfRecipe' paragraphs,
-      // parse the article using '1. ' as the marker for a recipe
+    if (instrRecipes >= endRecipes && instrRecipes > servesMakesRecipes) {
+      // If '1. ' paragraphs are as or more numerous than 'endOfRecipe'
+      //  paragraphs and more numerous than the 'servesMakes' paragraphs,
+      //  parse the article using '1. ' as the marker for a recipe
       articleResults = recipeParse("instr", $, paras, instrPara, articleObj)
-    } else {
-      // Otherwise, parse the article using 'endOfRecipe' as the marker for a recipe
+    } else if (endRecipes > instrRecipes && endRecipes > servesMakesRecipes ) {
+      // Else if 'endRecipe' are more numerous than the other 2 paragraphs, 
+      //  parse the article using 'endOfRecipe' as the marker for a recipe
       articleResults = recipeParse("end", $, paras, endPara, articleObj)
+    } else if (servesMakesRecipes >= endRecipes && servesMakesRecipes >= instrRecipes) {
+      // Otherwise, parse the article using 'servesMakes' as the marker for a recipe
+      articleResults = recipeParse("servesMakes", $, paras, servesMakesPara, articleObj)
     }
   } else {
     // If no 'endOfRecipe' or '1. ' paragraphs, the article has no recipes
