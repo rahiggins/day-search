@@ -169,7 +169,7 @@ window.getA.onArticleDisplay( (arg) => {
     }
 
     // Set the title
-    articleTitleP.innerText = articleInfo.rawTitle;
+    articleTitleP.innerText = "Seq: " + articleInfo.seq.toString() + ",  Article: " + articleInfo.rawTitle;
 
     // Adjust the depth of the recipes textarea
     expectedRecipesTA.rows = articleInfo.recipes.split('\n').length;

@@ -1,0 +1,227 @@
+seq: 9, article: In the Sugarhouse, a Slow, Steamy Rite of Spring
+    MAPLE-GLAZED MEATLOAF From the "Jimtown Store Cookbook," by Carrie Brown, John Werner and Michael McLaughlin (HarperCollins, 2002)
+
+    Paragraph containing the recipe name contains attribution and time,
+    but attribution is in the form of "From ..." instead of "Adapted ..."
+
+    Could by fixed by case mismatch
+
+seq: 11, article: The Way We Eat; As Easy as . . .
+    Buttermilk Layer Cake Vegetable oil for greasing pans
+
+    Ingredients in separate paragraphs, first ingredient is unquantified
+
+seq: 15, article: Leg Man
+    First recipe: Recipe Name not found
+
+    Article contains a numbered list in its introductory text, which is
+    interpreted as a recipe.
+
+seq: 27, article: Ripples in a Finger Bowl
+    Recipe Name not found
+
+    Paragraph containing the ingredients list not recognized as an 
+    ingredients list:
+    "Garlic powder Lawry's seasoned salt 16 rib lamb chops."
+
+seq: 30: article: EATING WELL; Advisories on Fish and the Pitfalls of Good Intent
+    First recipe: A Compromise, but Not in Taste
+
+    Author name (MARIAN BURROS) is its owm paragraph, rather than appended 
+    to the paragraph preceeding the recipe name.  Several paragraphs preceeding
+    the autohr name paragraph were skipped until a paragraph without terminal
+    puncuation was encountered (A Compromise, but Not in Taste), which was
+    taken as the recipe name.
+
+seq: 32, article: The Way We Eat: The Sweet-Tooth Fairy
+    Chocolate Financiers Vegetable oil
+
+    Ingredients in separate paragraphs, first ingredient is unquantified
+
+seq: 49, article: Dusk of the Drummer
+    empty
+
+    No recipe markers
+
+seq: 53, article: Generation Pad Thai
+    First recipe: Recipe Name not found
+
+    Article contains a numbered list in its introductory text, which is
+    interpreted as a recipe.
+
+seq: 60, article: Free Ranging
+    First recipe: Recipe Name not found
+    Should be: Japanese-Style White Rice
+
+    No ingrdients list
+
+seq: 71, article: The Way We Eat: Free Ranging
+    Salted Butter Caramels Vegetable oil
+    Cinnamon Fireball Candies Vegetable spray
+
+    Ingredients in separate paragraphs, first ingredient is unquantified
+
+seq: 83, article: Now Serving: Bar Necessities
+    MAKES 24 SERVINGS.
+
+    In para() MAKES 24 SERVINGS. does not set skip as true because it's 
+        all caps, but it does set allCAPS to true, so it is taken as the
+        recipe name
+    
+    Hot Port Sangaree From Audrey Saunders. MAKES ABOUT 1 QUART, OR 8 SERVINGS.
+
+    '1 QUART, OR 8 SERVINGS.' because allCAPS
+    'From Audrey Saunders. MAKES ABOUT' because numFound
+
+seq: 95; article: The Family Ticket; 1/2 Ounce Of Grenadine Makes A Kiddie Cocktail
+    empty
+
+    No recipe markers
+
+seq: 115, article: Citrus Maximus
+    First recipe missed
+
+    minority recipe marker
+
+    Second recipe missed
+
+    No recipe marker - 'Makes * cup.', a numeral does not follow 'Makes'
+
+    Chicken With Coca-Cola and Lemons Juice of 3 lemons
+
+    Ingredients in separate paragraphs, first ingredient is unquantified
+
+    Hazelnut-Lemon-Ricotta Pancakes This recipe fuses the lemon-ricotta pancakes at the Four Seasons with the hazelnut waffles at Balthazar. I
+
+    Text interposed between the recipe name and the ingredients list that 
+        did not end with terminal punctuation
+
+seq: 126, article: On a Pleasure Cruise
+    empty
+
+    No recipe marker
+
+seq: 133, article: Eat, Memory: The Sixth Sense
+    (Shrimp and Garlic)
+
+    Second recipe name fragmented, but the first fragment was included in the
+        paragraph preceeding the recipe.  So the recipe name consisted of
+        only the second fragment.
+
+seq: 142, article: Eat, Memory: Line of Sight
+    second recipe missed
+
+    No recipe marker
+
+seq: 143, article: Fruit Cocktail Season
+    empty 
+
+    No recipe marker
+
+
+seq: 145, article: THE MINIMALIST; The Love for 50 Cloves of Garlic
+    First recipe: Recipe Name not found
+
+    Ingredients list in one paragraph, '40 or more cloves' not recognized
+        as an ingredient, no ingredients found and recipe name not accumulated
+
+
+
+seq: 151,  article: The Way We Eat; Raising the Tapas Bar
+    First recipe: Recipe Name not found
+
+    No ingredients list or numbered instruction steps
+
+    Last recipe: Octopus Terrine Salted
+
+    Ingredients in separate paragraphs, first ingredient is unquantified
+
+
+seq: 152, article: In Mint Condition
+    empty
+
+    No recipe marker
+
+
+seq: 156, article: Kitchen Voyeur: The Original 'Unoriginal'
+    First recipe: Recipe Name not found
+
+    Paragraph that contains the recipe name also contains the ingredients
+    list. But because the paragraph does not include 'time' or 'adapted' 
+    phrases, the paragraph is emptied (adjustParaText(), attribution 
+    check) discarding the recipe name.
+
+    Second recipe: recipe name plus ingredients list
+
+    Same situation as the first recipe, but because the paragraph that
+    precedes the recipe name contains an endOfRecipe marker and the 
+    accumRecipeName array is empty, the paragraph previously exmained
+    is taken as the recipe name, including the ingredients list.
+
+    The following attribution check code solves this article, but breaks
+    many other articles that have a recipe name paragraph followed by
+    an ingredients list paragraph that starts with an unquantified 
+    ingredient, which is appended to the recipe name.
+
+    if (paraText.length > 0) {
+      // If, after slicing off the ingredients list, the paragraph
+      //  text is not empty, the paragraph may contain the recipe
+      //  name.
+      // Check the paragraph text for the case-insensitive phrases
+      //  'total time:', 'time:', 'adapted', or 'from'.
+      let attribution = paraText.match(/(total )*(time:)|(adapted)|(from)/i)
+      if (attribution != null) {
+        // If the paragraph text does contain one of those phrases,
+        //  then discard the that starts with that phrase and
+        //  return only the text that preceeds that phrase.
+        paraText = paraText.substring(0, attribution.index)
+        console.log("(ingredients found) Paragraph text trimmed at '" + attribution[0])
+      }
+    }
+
+    This code can be used if the unquantified first ingredient problem is
+    solved.
+
+seq: 161, article: The Arsenal
+    First recipe: Recipe Name not found
+
+    Recipe name followed by text ending in teminal punctuation, so the
+    recipe name paragraph is skipped.
+
+    Last three recipes: Recipe name paragraph also contains text or
+    ingredients list.  Preceding paragraph contains endOfRecipe, so
+    entire recipe name paragraph is taken as recipe name.
+
+seq: 162, article: Bourbonade
+    empty
+
+    No paragraph with recipe name
+
+Seq: 167,  Article: Kitchen Voyeur: Sunny Side Up
+    First recipe: Recipe Name not found
+
+    Paragraph that contains the recipe name also contains the ingredients
+    list. But because the paragraph does not include 'time' or 'adapted' 
+    phrases, the paragraph is emptied (adjustParaText(), attribution 
+    check) discarding the recipe name.
+
+    Other recipes: recipe name plus ingredients list
+
+    Same situation as the first recipe, but because the paragraph that
+    precedes the recipe name contains an endOfRecipe marker and the 
+    accumRecipeName array is empty, the paragraph previously exmained
+    is taken as the recipe name, including the ingredients list.
+
+
+
+
+
+
+
+
+
+
+
+
+
+    

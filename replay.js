@@ -1,3 +1,7 @@
+// Change log
+//  - mainline() - In getting articleClass, add p.css-15x2f4g to the
+//      Cheerio merge
+
 // External modules used
 const {app, BrowserWindow} = require('electron');
 const { ipcMain } = require('electron');
@@ -102,7 +106,11 @@ async function mainline() {
 
         // Get the article class, if it exists
         let header = $('header.e12qa4dv0');
-        let articleClass = $.merge($('p.css-c2jxua', header),$('p.css-1vhtahu', header)).text();
+        let articleClass = $.merge($('p.css-c2jxua', header),$('p.css-1vhtahu', header))
+        articleClass = $.merge(articleClass,$('p.css-1vhog55', header))
+        articleClass = $.merge(articleClass,$('p.css-9ogeoa', header))
+        articleClass = $.merge(articleClass,$('p.css-hcp891', header))
+        articleClass = $.merge(articleClass,$('p.css-15x2f4g', header)).text();
         if (articleClass.length > 0) {
             hasArticleClass = true
         } else {

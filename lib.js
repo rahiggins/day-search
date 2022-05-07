@@ -23,7 +23,7 @@
 // All functions call Log
 
 
-const debug = false; // Used by function Log
+const debug = true; // Used by function Log
 
 // Define a regular expression that matches 
 //  'Yield:', 'blah blah Serves', 'Makes 2' and 'Makes about 2'
@@ -176,7 +176,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
       "pound", "ounce", "gram",
       "inch", "piece",
       "onion", "potato", "zucchini", 
-      "clove", "bunch", "sprig", "sheet", "handful", "pinch"
+      "clove", "bunch", "sprig", "sheet", "handful", "pinch", "stalk"
     ]
 
     // Trim leading and trailing whitespace from the paragraph text.
@@ -198,7 +198,6 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
       //  of the paragraph text (possibly preceded by spaces and dashes) and 
       //  capture the text preceding the name (and possibly spaces and dashes).
 
-      console.log("adjustParaText - author: '" + articleObj.author + "'")
       let rx = new RegExp('(.*?)(\\s*-*\\s*)?' + articleObj.author + '$', 'i');
 
       // Look for a match
@@ -363,12 +362,38 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
             //  return only the text that preceeds that phrase.
             let attribution = paraText.match(/(total )*(time:)|(adapted)|(from)/i)
             if (attribution == null) {
-              console.log("(ingredients not found) Paragraph discarded")
+              console.log("(attribution not found) Paragraph discarded")
               paraText = ''
             } else {
               paraText = paraText.substring(0, attribution.index)
-              console.log("(ingredients not found) Paragraph text trimmed at '" + attribution[0])
+              console.log("(attribution found) Paragraph text trimmed at '" + attribution[0])
             }
+
+            // The following attribution check code solves article seq 156
+            // (09/04/2005 - The Original 'Unoriginal'), but breaks
+            // many other articles that have a recipe name paragraph followed by
+            // an ingredients list paragraph that starts with an unquantified 
+            // ingredient, which is appended to the recipe name.
+
+            // This code can be used if the unquantified first ingredient 
+            // appended to recipe name problem is solved.
+
+            // if (paraText.length > 0) {
+            //   // If, after slicing off the ingredients list, the paragraph
+            //   //  text is not empty, the paragraph may contain the recipe
+            //   //  name.
+            //   // Check the paragraph text for the case-insensitive phrases
+            //   //  'total time:', 'time:', 'adapted', or 'from'.
+            //   let attribution = paraText.match(/(total )*(time:)|(adapted)|(from)/i)
+            //   if (attribution != null) {
+            //     // If the paragraph text does contain one of those phrases,
+            //     //  then discard the that starts with that phrase and
+            //     //  return only the text that preceeds that phrase.
+            //     paraText = paraText.substring(0, attribution.index)
+            //     console.log("(ingredients found) Paragraph text trimmed at '" + attribution[0])
+            //   }
+            // }
+
 
           }
 
@@ -418,6 +443,8 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
       console.log("paraText truncated at " + ta[0])
     }
 
+    Log("Exit adjustParaText with -")
+    Log(`'${paraText}'`)
     return paraText;
 
   }
@@ -588,7 +615,25 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
         if (p.isEndOfRecipe && accumRecipeName.length == 0) {
           // If 'endOfRecipe' encountered and accumRecipeName is empty, 
           //  set the recipe name from the subsequent <p> element
-          let subsequentParaText = adjustParaText($(paras[i+1]).text())
+          Log("Looking for the subsequent paragraph")
+
+          //  >>------>
+          // Need a loop here to back up over paragraphs that have .skip
+          //  as true
+
+          let subsequentParaText;
+          let skipSubsequentPara = true
+          do {
+            subsequentParaText = adjustParaText($(paras[i+1]).text());
+            subseqCharacteristics = para(subsequentParaText);
+            if (!(subseqCharacteristics.skip || 
+                subseqCharacteristics.colon)) {
+              skipSubsequentPara = false
+            }
+            i++
+          } while (skipSubsequentPara)
+
+          //let subsequentParaText = adjustParaText($(paras[i+1]).text())
           Log("endOfRecipe & empty accumRecipeName, previous paragraph: " + subsequentParaText)
           recipeName = subsequentParaText
 

@@ -26,7 +26,11 @@
 // The Save actions insert the article and its attributes into a mySQL 
 //  database.
 //
-// The Quit actions terminate getArticles. 
+// The Quit actions terminate getArticles.
+
+// Change log
+//  - mainline() - In getting articleClass, add p.css-15x2f4g to the
+//      Cheerio merge
 
 // External modules used
 const {app, BrowserWindow} = require('electron');
@@ -467,7 +471,11 @@ async function mainline() {
 
             // Get the article class, if it exists
             let header = $('header.e12qa4dv0');
-            let articleClass = $.merge($('p.css-c2jxua', header),$('p.css-1vhtahu', header)).text();
+            let articleClass = $.merge($('p.css-c2jxua', header),$('p.css-1vhtahu', header))
+            articleClass = $.merge(articleClass,$('p.css-1vhog55', header))
+            articleClass = $.merge(articleClass,$('p.css-9ogeoa', header))
+            articleClass = $.merge(articleClass,$('p.css-hcp891', header))
+            articleClass = $.merge(articleClass,$('p.css-15x2f4g', header)).text();
             if (articleClass.length > 0) {
                 hasArticleClass = true
             } else {
@@ -501,6 +509,7 @@ async function mainline() {
             // Create an articleInfo object to send to the renderer process
             //  for displaying the article
             articleInfo = {
+                seq: seq+1,
                 date: date,
                 name: articleUrls[i].match(nameRX)[1],
                 URL: articleUrls[i],
