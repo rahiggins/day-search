@@ -360,7 +360,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
             //  then the paragraph might also contain the recipe name.
             //  In that case, discard the that starts with that phrase and
             //  return only the text that preceeds that phrase.
-            let attribution = paraText.match(/(total )*(time:)|(adapted)|(from)/i)
+            let attribution = paraText.match(/((total )*(time:)|(adapted)|(from))\s/i)
             if (attribution == null) {
               console.log("(attribution not found) Paragraph discarded")
               paraText = ''
