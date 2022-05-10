@@ -65,7 +65,7 @@ if ( fs.existsSync('./testcase-lib.js') ) {
   console.log("Using lib.js")
   libName = './lib.js'
 }
-const { getAuthor, adjustTitle, findRecipes } = require(libName);
+const { getArticleClass, getAuthor, adjustTitle, findRecipes } = require(libName);
 
 let waitUntil = "domcontentloaded"  // puppeteer goto waitUntil value
 debug = true;
@@ -469,20 +469,8 @@ async function mainline() {
             html = await dayPage.content();
             let $ = cheerio.load(html)
 
-            // Get the article class, if it exists
-            let header = $('header.e12qa4dv0');
-            let articleClass = $.merge($('p.css-c2jxua', header),$('p.css-1vhtahu', header))
-            articleClass = $.merge(articleClass,$('p.css-1vhog55', header))
-            articleClass = $.merge(articleClass,$('p.css-9ogeoa', header))
-            articleClass = $.merge(articleClass,$('p.css-hcp891', header))
-            articleClass = $.merge(articleClass,$('p.css-15x2f4g', header)).text();
-            if (articleClass.length > 0) {
-                hasArticleClass = true
-            } else {
-                hasArticleClass = false
-            }
-
             // Get the article title and note whether it contains ':' or ';'
+            let header = $('header.e12qa4dv0');
             let rawTitle = $('h1', header).text();
             if (rawTitle.match(/[;:]/) != null) {
                 hasTitlePunct = true;
@@ -493,6 +481,9 @@ async function mainline() {
             // Call adjustTitle to create an articleObj object
             let articleObj = adjustTitle(rawTitle)
 
+            // Get the article class, if it exists
+            let [hasArticleClass, articleClass] = getArticleClass($)
+
             // Add author to the articleObj
             articleObj['author'] = getAuthor($)
             console.log("Prior to findRecipes, author: " + articleObj.author)
@@ -501,6 +492,7 @@ async function mainline() {
             let [ , articleResults] = await findRecipes($, articleObj);
             let recipes = articleResults.recipes;
             let numRecipes = recipes.length;
+            Log("Number of recipes returned by findRecipes: " + numRecipes.toString())
             for (let i = 0; i<numRecipes; i++) {
                 console.log(recipes[i])
             }

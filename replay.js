@@ -14,6 +14,14 @@ const appPath = process.cwd();
 //const { getAuthor, adjustTitle, findRecipes } = require('./lib.js');
 
 let replayWindow;
+debug = true;
+
+function Log (text) {
+    // If debugging, write text to console.log
+    if (debug) {
+        console.log(text)
+    }
+  }
 
 async function mainline() {
 
@@ -99,24 +107,12 @@ async function mainline() {
           console.log("Using lib.js")
           libName = './lib.js'
         }
-        const { getAuthor, adjustTitle, findRecipes } = require(libName);
+        const { getAuthor, getArticleClass, adjustTitle, findRecipes } = require(libName);
 
         let queryResponse = await connection.query(`SELECT html FROM ${tableName} WHERE seq = ${seq}`)
         let $ = cheerio.load(queryResponse[0][0].html)
 
-        // Get the article class, if it exists
         let header = $('header.e12qa4dv0');
-        let articleClass = $.merge($('p.css-c2jxua', header),$('p.css-1vhtahu', header))
-        articleClass = $.merge(articleClass,$('p.css-1vhog55', header))
-        articleClass = $.merge(articleClass,$('p.css-9ogeoa', header))
-        articleClass = $.merge(articleClass,$('p.css-hcp891', header))
-        articleClass = $.merge(articleClass,$('p.css-15x2f4g', header)).text();
-        if (articleClass.length > 0) {
-            hasArticleClass = true
-        } else {
-            hasArticleClass = false
-        }
-
         // Get the article title and note whether it contains ':' or ';'
         let rawTitle = $('h1', header).text();
         if (rawTitle.match(/[;:]/) != null) {
@@ -126,7 +122,11 @@ async function mainline() {
         }
 
         // Call adjustTitle to create an articleObj object
-        let articleObj = adjustTitle(rawTitle)
+        let articleObj = adjustTitle(rawTitle);
+
+        // Get the article class, if it exists
+        let hasArticleClass;
+        [hasArticleClass] = getArticleClass($);
 
         // Add author to the articleObj
         articleObj['author'] = getAuthor($)
@@ -136,10 +136,10 @@ async function mainline() {
         let [ , articleResults] = await findRecipes($, articleObj);
         let recipes = articleResults.recipes;
         let numRecipes = recipes.length;
+        Log("Number of recipes returned by findRecipes: " + numRecipes.toString())
         for (let i = 0; i<numRecipes; i++) {
-            console.log(recipes[i])
+            console.log(" " + recipes[i])
         }
-
 
         // Create an articleInfo object to send to the renderer process
         //  for displaying the article

@@ -4,6 +4,7 @@
 // The functions in the file are:
 //  - Log
 //  - getAuthor
+//  - getArticleClass
 //  - recipeParse
 //    - adjustParaText
 //  - para
@@ -12,9 +13,9 @@
 //  - findRecipe
 
 // These functions are called from the index.js process, which requires
-//  getAuthor, adjustTitle and findRecipe
+//  getAuthor, getArticleClass, adjustTitle and findRecipe
 
-// index.js calls getAuthor, adjustTitle and findRecipe
+// index.js calls getAuthor, getArticleClass, adjustTitle and findRecipe
 
 // findrecipe calls recipeParse, which calls adjustParaText and para
 
@@ -71,8 +72,19 @@ Array.prototype.equals = function (array) {
 // Hide method from for-in loops (huh?)
 Object.defineProperty(Array.prototype, "equals", {enumerable: false});
 
+function getArticleClass ($) {
+  // Get article class, i.e. a tag displayed above the article title
+  // Input: A Cheerio query function based on the article HTML
+  // Output: array -
+  //                  boolean, true if an article class is present
+  //                  string, article class text
+  let articleClass = $('#story > header > p').text();
+  return [articleClass != '', articleClass]
+}
+  
+
 function getAuthor ($) {
-  // Get authir name from aritcle
+  // Get author name from aritcle
   // Input: Cheerio query function based on article HTML
   // Output: Author name, string
   return $('#story > header > div.css-xt80pu.eakwutd0 > div > div > div > p > span').text().replace('By ', '');
@@ -1042,4 +1054,4 @@ async function findRecipes($, articleObj, mainWindow, expectedRecipes) {
   return [articlesDisplayed, articleResults];
 }
 
-module.exports = { getAuthor, adjustTitle, findRecipes };
+module.exports = { getArticleClass, getAuthor, adjustTitle, findRecipes };
