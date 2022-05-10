@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Validate Report</title>
+    <link rel="stylesheet" href="spectre.min.css">
+    <link rel="stylesheet" href="spectre-icons.min.css">
+    <link rel="stylesheet" href="AppStyles.css">
+  </head>
+  <body>
+
+    <template id="difference">
+      <div class="columns mb-2 mt-2">
+        <div class="column col-12 text-primary">
+          <div class="divider"></div>
+          <p class="mb-1"></p>
+        </div>
+        <div class="column col-7">
+        </div>
+        <div class="column col-5">
+        </div>
+      </div>
+    </template>
+
+    <div class="container m-2" id="diff-container">
+
+      <div class="columns">
+        <div class="column col-12 text-center">
+          <p id="OK" class="text-success"></p>
+        </div>
+        <div id="heading1" class="column col-7 d-invisible">
+          <p class="mb-0 text-bold">lib.js results</p>
+        </div>
+        <div id="heading2" class="column col-5 d-invisible">
+          <p class="mb-0 text-bold">Database results</p>
+        </div>
+      </div>
+      <div class="loading loading-lg" id="loading"></div>
+    </div>
+
+    <script src="./validate-renderer.js"></script>
+</body>
+</html>
