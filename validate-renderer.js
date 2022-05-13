@@ -2,6 +2,7 @@
 const container = document.getElementById('diff-container')
 const okPara = document.getElementById('OK');
 const diffContent = document.getElementById('difference').content;
+const solvedContent = document.getElementById('solved').content;
 const heading1 = document.getElementById('heading1');
 const heading2 = document.getElementById('heading2');
 const loading = document.getElementById('loading');
@@ -48,6 +49,10 @@ window.validate.onOkDisplay( () => {
     okPara.textContent = "All results as expected"
 })
 
+window.validate.onFinished( () => {
+    loading.remove()
+})
+
 window.validate.onArticleDisplay( (arg) => {
     
     let argsObj = JSON.parse(arg)
@@ -56,7 +61,6 @@ window.validate.onArticleDisplay( (arg) => {
         invisible = false;
         heading1.classList.remove('d-invisible');
         heading2.classList.remove('d-invisible');
-        loading.remove()
     }
 
    function showClass(prop, div, color) {
@@ -107,4 +111,17 @@ window.validate.onArticleDisplay( (arg) => {
     container.append(diff)
 
     
+})
+
+window.validate.onArticleSolved( (arg) => {
+    
+    let argsObj = JSON.parse(arg)
+
+    console.log("Article solved = seq: " + argsObj.seq.toString() + ", Name: " + argsObj.name);
+
+    let solved = solvedContent.cloneNode(true)
+    let solvedPara = solved.querySelector('p')
+    solvedPara.textContent = `SOLVED seq: ${argsObj.seq.toString()}, Article: ${argsObj.name}`;
+    container.append(solved)
+
 })

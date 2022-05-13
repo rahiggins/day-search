@@ -171,8 +171,19 @@ async function mainline() {
 
         if (dbResult.isNotSolved) {
             if (dbResult.expectedRecipes.split('\n').equals(articleResults.recipes)) {
-                console.log("Artcile solved: seq: " + seq.toString() + ", Name: " + dbResult.Name )
+                console.log("Article solved: seq: " + seq.toString() + ", Name: " + dbResult.Name )
                 allGood = false;
+
+                validateWindow.webContents.send('article-solved', 
+                JSON.stringify(
+
+                  {
+                    seq: seq,
+                    name: dbResult.Name
+                  }
+
+                )
+              )
             }
         } else {
             if (!dbResult.discoveredRecipes.split('\n').equals(articleResults.recipes)
@@ -203,6 +214,8 @@ async function mainline() {
     if (allGood) {
         console.log("All results as expected")
         validateWindow.webContents.send('Ok-display');
+    } else {
+      validateWindow.webContents.send('finished');
     }
     
 }

@@ -299,6 +299,30 @@ Seq: 187,  Article: A Poor Man's Porcini, in a Silly Hat
     each preceeding paragraph is skipped until the article name is taken
     as the recipe name.
 
+Seq: 191,  Article: Kitchen Voyeur: Kitchen Sage
+    First recipe: missed
+
+    No recipe marker
+
+    Second recipe: Recipe Name not found
+
+    Paragraph that contains the recipe name also contains the ingredients
+    list. But because the paragraph does not include 'time' or 'adapted' 
+    phrases, the paragraph is emptied (adjustParaText(), attribution 
+    check) discarding the recipe name.
+
+    Third recipe: Recipe name followed by ingredients list
+
+    Paragraph that contains the recipe name also contains the ingredients
+    list. But because the paragraph does not include 'time' or 'adapted' 
+    phrases, the paragraph is not not recognized as containing the recipe
+    name and is discarded.  The next paragraph examined contains an    
+    endOfRecipe marker and the accumRecipeName array is empty, so
+    the paragraph previously exmained is taken as the recipe name,
+    including the ingredients list.
+
+
+
 
 
 

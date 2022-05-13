@@ -363,19 +363,81 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
             accumRecipeName = [];
             Log("Ingredients found, accumRecipeName reset");
 
-            // Check the paragraph text for the case-insensitive phrases 
-            //  'total time:', 'time:', 'adapted', or 'from'
+            // Check the paragraph text for the case-insensitive attribution
+            //  phrases: total time:', 'time:', 'adapted', or 'from'
+            //
             // If the paragraph text does not contain these prhases,
-            //  then the paragraph contained only the ingredients list and
-            //  can be discarded by setting its text to an empty string.
+            //  then check for capitalized words at the beginning of the 
+            //  paragraph - these may be the recipe name.  Scan the 
+            //  blank-delimited words of the paragraph until a word that
+            //  begins with a lowercase letter or a numeral is encountered.
+            //  If the word encountered is the first word of the paragraph,
+            //   discard the paragraph by returning an empty string.
+            //  If a word beginning with a numeral is encountered,
+            //   return a string consisting of the previous words.
+            //  If a word beginning a lowercase letter is encountered,
+            //   return a string consisting of the previous words but
+            //   excluding the word preceeding the lowercase word.
+            //   (If the first ingredient is unquantified, its first word
+            //    will be capitalized).
+            //
             // If the paragraph text does contain one of those phrases,
             //  then the paragraph might also contain the recipe name.
-            //  In that case, discard the that starts with that phrase and
-            //  return only the text that preceeds that phrase.
+            //  In that case, discard the text that starts with that phrase
+            //  and return only the text that preceeds that phrase.
+
             let attribution = paraText.match(/((total )*(time:)|(adapted)|(from))\s/i)
+
             if (attribution == null) {
-              console.log("(attribution not found) Paragraph discarded")
-              paraText = ''
+              // If no attribution phrase ...
+              console.log("No attribution")
+
+              // Split the paragraph text into words
+              let words = paraText.split(' ');
+
+              // Assume a recipe name
+              let possibleName = true;
+
+              for (i = 0; i < words.length; i++) {
+                // For each word, check if its first character is 
+                //  lowwercase or a numeral
+                let first = words[i].substring(0, 1);
+                let firstMatch = first.match(/[a-z]|\d/);
+                console.log("i: " + i.toString())
+                console.log(" word: " + words[i] + ", firstMatch: " + firstMatch)
+
+                if (firstMatch != null) {
+                  // If the first char matches ...
+                  if (i == 0) {
+                    console.log("First word is lowercase or numeric, no recipe name")
+                    possibleName = false;
+                    break
+                  }
+                  if (firstMatch[0].match(/\d/)) {
+                    // Numeral encountered - return previous words
+                    console.log(" numeric")
+                    paraText = words.slice(0, i).join(' ')
+                  } else {
+                    if (words[i] == 'and') {
+                      // 'and' can be part of a recipe name, so continue
+                      continue
+                    }
+                    // Lowercase encounteres - return previous words except
+                    //  for the last one
+                    paraText = words.slice(0, i-1).join(' ')
+                  }
+                  console.log("Lowercase or numeric encountered - paraText: " + paraText)
+                  break
+                }
+              }
+
+              if (!possibleName) {
+                console.log("No attirbution, no recipe name - paraText emptied")
+                paraText = ''
+              }
+
+              // console.log("(attribution not found) Paragraph discarded")
+              // paraText = ''
             } else {
               paraText = paraText.substring(0, attribution.index)
               console.log("(attribution found) Paragraph text trimmed at '" + attribution[0])
@@ -460,6 +522,42 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     return paraText;
 
   }
+
+  function joinAccumRecipeName(accumRecipeName) {
+    // After a recipe is parsed, joinAccumRecipeName is called if the 
+    //  Input: accumRecipeName array
+    //  is not empty.
+    // Output: recipe name
+    //
+    // If the accumRecipeName array has more than 1 element, check if 
+    //  the last element consists of a single word. If that is the case,
+    //  drop the last element before joining the element of the array to
+    //  return as the recipe name.
+    console.log("joinAccumRecipeName entered with -")
+    console.log(accumRecipeName)
+
+    let length = accumRecipeName.length;
+    if (length > 1) {
+      // If the input array has more than one element ...
+
+      // ... split the last element into words
+      let lastAccum = accumRecipeName.slice(-1)[0].split(' ');
+
+      if (lastAccum.length == 1) {
+        // if the last element consists of one word ...
+        console.log("Last element of accumRecipeName dropped")
+
+        // ... return as the recipe name: the elements of the input array 
+        //  excluding the last elemet
+        return accumRecipeName.slice(0, length-1).join(' ')
+      }
+    }
+
+    // If the input array has only one element or if the last element has
+    //  more than one word, return as the recipe name all elements of the
+    //  input array
+    return accumRecipeName.join(' ')
+  }
   
   // For each recipe marker, indicated by an element of arr[],
   //  find the recipe name
@@ -539,7 +637,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
         if (paraText == "RECIPES") {
           
           // …the recipe name is the previously accumulated recipe name
-          recipeName = accumRecipeName.join(' ')
+          recipeName = joinAccumRecipeName(accumRecipeName);
           hasFragmentedTitle = hasFragmentedTitle || accumRecipeName.length > 1;
           console.log("allCAPS hasFragmentedTitle: " + hasFragmentedTitle)
           // Reset the accumulation and exit the find-recipe-name loop
@@ -629,10 +727,6 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
           //  set the recipe name from the subsequent <p> element
           Log("Looking for the subsequent paragraph")
 
-          //  >>------>
-          // Need a loop here to back up over paragraphs that have .skip
-          //  as true
-
           let subsequentParaText;
           let skipSubsequentPara = true
           do {
@@ -654,8 +748,8 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
           //  accumRecipeName is not empty, then set the recipe name to accumRecipeName
           console.log("terminal punct & accumRecipeName not empty")
           console.log("hasFragmentedTitle: " + hasFragmentedTitle)
-          console.log("accumRecipeName length: " + accumRecipeName.length.toString())
-          recipeName = accumRecipeName.join(' ');
+          console.log("accumRecipeName length: " + accumRecipeName.length.toString());
+          recipeName = joinAccumRecipeName(accumRecipeName)
           hasFragmentedTitle = hasFragmentedTitle || accumRecipeName.length > 1;
           Log("Recipe name set to accumRecipeName, hasFragmentedTitle: " + hasFragmentedTitle)
         }
@@ -691,7 +785,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     Log("accumRecipeName: " + accumRecipeName)
     if (accumRecipeName.length != 0 && !articleObj.isRecipe) {
       Log("Recipe name set to accumRecipeName")
-      recipeName = accumRecipeName.join(' ');
+      recipeName = joinAccumRecipeName(accumRecipeName);
       hasFragmentedTitle = hasFragmentedTitle || accumRecipeName.length > 1;
       console.log("hasFragmentedTitle: " + hasFragmentedTitle)
     }

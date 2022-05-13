@@ -16,6 +16,12 @@ contextBridge.exposeInMainWorld(
         },
         onArticleDisplay: (fn) => {
           ipcRenderer.on('article-display', (event, ...args) => fn(...args));
+        },
+        onArticleSolved: (fn) => {
+          ipcRenderer.on('article-solved', (event, ...args) => fn(...args));
+        },
+        onFinished: (fn) => {
+          ipcRenderer.on('finished', (event, ...args) => fn(...args));
         }
     }
 )
