@@ -23,30 +23,28 @@ if (Array.prototype.equals)
     console.warn("Overriding existing Array.prototype.equals. Possible causes: New API defines the method, there's a framework conflict or you've got double inclusions in your code.");
 // attach the .equals method to Array's prototype to call it on any array
 Array.prototype.equals = function (array) {
-    // if the other array is a falsy value, return
-    if (!array) {
-      return false;
-    }
-
-    // compare lengths - can save a lot of time 
-    if (this.length != array.length) {
-      return false;
-    }        
-
-    for (var i = 0, l=this.length; i < l; i++) {
-        // Check if we have nested arrays
-        if (this[i] instanceof Array && array[i] instanceof Array) {
-            // recurse into the nested arrays
-            if (!this[i].equals(array[i])) {
-              return false; 
-            }                      
-        }           
-        else if (this[i] != array[i]) {
-            // Warning - two different object instances will never be equal: {x:20} != {x:20}
-            return false;   
-        }           
-    } 
-    return true;
+  // if the other array is a falsy value, return
+  if (!array) {
+    return false;
+  }
+  // compare lengths - can save a lot of time 
+  if (this.length != array.length) {
+    return false;
+  }        
+  for (var i = 0, l=this.length; i < l; i++) {
+      // Check if we have nested arrays
+      if (this[i] instanceof Array && array[i] instanceof Array) {
+          // recurse into the nested arrays
+          if (!this[i].equals(array[i])) {
+            return false; 
+          }                      
+      }           
+      else if (this[i] != array[i]) {
+          // Warning - two different object instances will never be equal: {x:20} != {x:20}
+          return false;   
+      }           
+  } 
+  return true;
 }
 // Hide method from for-in loops (huh?)
 Object.defineProperty(Array.prototype, "equals", {enumerable: false});
@@ -62,161 +60,356 @@ function bx(num) {
 
 async function mainline() {
 
-    function createWindow () {
-        // On app ready, create a browser window and load replay.html.
-    
-        console.log("createWindow entered")
-    
-        // Create the browser window.
-        validateWindow = new BrowserWindow({
-          x: 10,
-          y: 50,
-          width: 1200, 
-          height: 750,
-          alwaysOnTop: true,
-          webPreferences: {
-            preload: path.join(__dirname, 'validate-preload.js')
-          }
-        })
-    
-        // and load the index.html of the app.
-        validateWindow.loadFile('validate.html')
-    
-        // await launchPup({devtools: true});
-        validateWindow.show(); // Focus on validateWindow
-    
-        // Open the DevTools.
-        // validateWindow.webContents.openDevTools()
-    
-        // Emitted when the window is closed.
-        validateWindow.on('closed', function () {
-          // Dereference the window object, usually you would store windows
-          // in an array if your app supports multi windows, this is the time
-          // when you should delete the corresponding element.
-          validateWindow = null
-        })
-    
-    }
+  function createWindow () {
+    // On app ready, create a browser window and load replay.html.
 
-    // This method will be called when Electron has finished
-    // initialization and is ready to create browser windows.
-    // Some APIs can only be used after this event occurs.
-    app.on('ready', createWindow)
+    console.log("createWindow entered")
 
-    app.on('activate', function () {
-        // On macOS it's common to re-create a window in the app when the
-        // dock icon is clicked and there are no other windows open.
-        if (validateWindow === null) {
-          createWindow()
-        }
+    // Create the browser window.
+    validateWindow = new BrowserWindow({
+      x: 10,
+      y: 50,
+      width: 1200, 
+      height: 750,
+      alwaysOnTop: true,
+      webPreferences: {
+        preload: path.join(__dirname, 'validate-preload.js')
+      }
     })
 
-    // Connect to the mySQL database
-    let connection;
-    console.log("Connecting to database")
-    try {
-        connection = await mysql.createConnection({
-            host: 'localhost',
-            port: 8889, 
-            user: 'root',
-            password: 'root',
-            database: 'NYTarticles'
-        });
-        console.log("connected to database")
+    // and load the index.html of the app.
+    validateWindow.loadFile('validate.html')
 
-    } catch(err) {
-        console.log("Database connection errer")
-        console.log(err)
-        return -1
+    // await launchPup({devtools: true});
+    validateWindow.show(); // Focus on validateWindow
+
+    // Open the DevTools.
+    // validateWindow.webContents.openDevTools()
+
+    // Emitted when the window is closed.
+    validateWindow.on('closed', function () {
+      // Dereference the window object, usually you would store windows
+      // in an array if your app supports multi windows, this is the time
+      // when you should delete the corresponding element.
+      validateWindow = null
+    })
+
+  }
+
+  // This method will be called when Electron has finished
+  // initialization and is ready to create browser windows.
+  // Some APIs can only be used after this event occurs.
+  app.on('ready', createWindow)
+
+  app.on('activate', function () {
+      // On macOS it's common to re-create a window in the app when the
+      // dock icon is clicked and there are no other windows open.
+      if (validateWindow === null) {
+        createWindow()
+      }
+  })
+
+  // Connect to the mySQL database
+  let connection;
+  console.log("Connecting to database")
+  try {
+      connection = await mysql.createConnection({
+          host: 'localhost',
+          port: 8889, 
+          user: 'root',
+          password: 'root',
+          database: 'NYTarticles'
+      });
+      console.log("connected to database")
+  } catch(err) {
+      console.log("Database connection errer")
+      console.log(err)
+      return -1
+  }
+
+  let libName; // name of file containing functions
+  if ( fs.existsSync('./testcase-lib.js') ) {
+    // Use test versions of adjustTitle and findRecipes
+    console.log("Using testcase-lib.js")
+    libName = './testcase-lib.js'
+  } else {
+    // Use base versions of adjustTitle and findRecipes
+    console.log("Using lib.js")
+    libName = './lib.js'
+  }
+  const { getArticleClass, getAuthor, adjustTitle, findRecipes } = require(libName);
+  let table = "articles";
+  let maxResult = await connection.query(`SELECT MAX(seq) FROM ${table}`)
+  let max = maxResult[0][0]['MAX(seq)'];
+  console.log("Max seq: " + max.toString())
+  let cols = 'Name, hasArticleClass, hasFragmentedTitle, isNotSolved, discoveredRecipes, expectedRecipes, html'
+  let allSame = true
+  let dbResult;
+  for (let seq = 1; seq <= max; seq++ ) {
+    console.log(`Processing seq: ${seq.toString()}`)
+    row = await connection.query(`SELECT ${cols} FROM ${table} WHERE seq = ${seq}`)
+    dbResult = row[0][0];
+
+    if (bx(dbResult.isNotSolved)) {
+      // Create an array of the expected recipes
+      var expectedRecipesArray = dbResult.expectedRecipes.split('\n')
     }
 
-    let libName; // name of file containing functions
-    if ( fs.existsSync('./testcase-lib.js') ) {
-      // Use test versions of adjustTitle and findRecipes
-      console.log("Using testcase-lib.js")
-      libName = './testcase-lib.js'
+    // Create an array of the database discovered recipes
+    //  recipesToArray handles empty strings, returning an empty array  
+    let dbDiscoveredRecipesArray = recipesToArray(dbResult.discoveredRecipes)
+
+    // If the discovered results in the database row is an empty string,
+    //  .split('\n') does not return an empty array ( it returns [ '' ] ).
+    // Create dbExpectedResultsArray, which can be compared to the array
+    //  returned in articleResults.recipes
+    function recipesToArray (recipeString) {
+      Log("recipesToArray entered with: '" + recipeString + "'" )
+      if (recipeString == '') {
+        return []
+      } else{
+        return recipeString.split('\n')
+      }
+    }
+
+    let $ = cheerio.load(dbResult.html)
+      
+    // Get article title and create articleObj with key 'title'
+    let header = $('header.e12qa4dv0');
+    let rawTitle = $('h1', header).text();
+    let articleObj = adjustTitle(rawTitle);
+
+    // Add hasArticleClass to the articleObj
+    articleObj['hasArticleClass'] = getArticleClass($)[0];
+    
+    // Add author to the articleObj
+    articleObj['author'] = getAuthor($)
+
+    // Call findRecipes to get recipes in the article
+    let [ , articleResults] = await findRecipes($, articleObj);
+    console.log("articleResults.recipes: " + articleResults.recipes + ", typeof: " + typeof articleResults.recipes + ", length: " +  articleResults.recipes.length.toString());
+
+    // Check if a previously unsolved article has been solved, i.e. the 
+    //  current discovered recipes match the database's expected recipes.
+    // If so, display the article as solved.
+    // In either case, add the isNotSolved key to the current results object, articleResults
+    if (bx(dbResult.isNotSolved)) { 
+      // If the article is not solved in the database ...
+      if (expectedRecipesArray.equals(articleResults.recipes)) {
+        // ... and the current recipes match the expected recipes,
+        // display the article as solved
+        console.log("Article solved: seq: " + seq.toString() + ", Name: " + dbResult.Name )
+        allSame = false
+        validateWindow.webContents.send('article-solved', 
+        JSON.stringify(
+          {
+            seq: seq,
+            name: dbResult.Name
+          
+          })
+        )
+        articleResults['isNotSolved'] = false
+      } else {
+        articleResults['isNotSolved'] = true
+      }
+    }
+
+    // Compare the current parse results to the database results.
+    //  Results include attributes such as hasArticleClass and 
+    //  hasFragmentedTitle, as well as the recipes discovered.
+    
+    let improved = false;
+    let comparisonArray;
+
+    // For this comparison, choose which set of database recipes to
+    //  compare with the current discovered recipes
+    let dbRecipesArray;
+    if (!articleResults.isNotSolved && bx(dbResult.isNotSolved)) {
+      // If the current results solve a previously unsolved article,
+      //  use the expected results for the comparison.
+      // Note: Only unsolved database entries have expected recipes.
+      //  Since the current results solve the article, its discovered
+      //  recipes will match the database's expected recipes, so the
+      //  comparison will only detect differences in the tested
+      //  attributes, e.g. hasArticleClass and hasFragmentedTitle.
+      Log("Different results test will use expectedRecipes")
+      dbRecipesArray = expectedRecipesArray;
     } else {
-      // Use base versions of adjustTitle and findRecipes
-      console.log("Using lib.js")
-      libName = './lib.js'
-    }
-    const { getArticleClass, getAuthor, adjustTitle, findRecipes } = require(libName);
+      // Otherwise, use the previously discovered recipes for the
+      //  comparison
+      Log("Different results test will use discoveredRecipes")
+      dbRecipesArray = dbDiscoveredRecipesArray
+    }    
+    
+    // If the article is not yet solved, check if the current results
+    //  are an improvement.
+    // For each expected recipe, determine whether it is included
+    //  in the current discovered recipes and whether is is inclduded
+    //  in the database discovered recipes.  If more of the expected
+    //  recipes are included in the current discovered results than
+    //  are included in the database discovered results, then the 
+    //  current results are an improvement, and the improvement is
+    //  displayed.
+    if ( articleResults.isNotSolved && bx(dbResult.isNotSolved) ) {
+      Log("Neither solved")
 
-    let table = "articles";
-    let maxResult = await connection.query(`SELECT MAX(seq) FROM ${table}`)
-    let max = maxResult[0][0]['MAX(seq)'];
-    console.log("Max seq: " + max.toString())
+      // Number of current results recipes that match an expected recipe
+      let currMatch = 0;
 
-    let cols = 'Name, hasArticleClass, isNotSolved, discoveredRecipes, expectedRecipes, html'
-    let allGood = true
-    for (let seq = 1; seq <= max; seq++ ) {
-        row = await connection.query(`SELECT ${cols} FROM ${table} WHERE seq = ${seq}`)
-        dbResult = row[0][0];
+      // Number of database results recipes that match an expected recipe
+      let dbMatch = 0;
 
-        let $ = cheerio.load(dbResult.html)
-        
-        // Get article title and create articleObj with key 'title'
-        let header = $('header.e12qa4dv0');
-        let rawTitle = $('h1', header).text();
-        let articleObj = adjustTitle(rawTitle);
+      // Array, status of each expected recipe's presence in the current
+      //  discovered recipes
+      let currStatus = [];
 
-        // Add hasArticleClass to the articleObj
-        articleObj['hasArticleClass'] = getArticleClass($)[0];
-        
-        // Add author to the articleObj
-        articleObj['author'] = getAuthor($)
+      // Array, status of each expected recipe's presence in the database
+      //  discovered recipes
+      let dbStatus = [];
 
-        // Call findRecipes to get recipes in the article
-        let [ , articleResults] = await findRecipes($, articleObj);
+      for (let i = 0; i < expectedRecipesArray.length; i++) {
+        // For each expected recipe ...
 
-        if (dbResult.isNotSolved) {
-            if (dbResult.expectedRecipes.split('\n').equals(articleResults.recipes)) {
-                console.log("Article solved: seq: " + seq.toString() + ", Name: " + dbResult.Name )
-                allGood = false;
+        if (articleResults.recipes.includes(expectedRecipesArray[i])) {
+          // If this expected recipe is included in the current discovered
+          //  results ...
 
-                validateWindow.webContents.send('article-solved', 
-                JSON.stringify(
+          // Count the match
+          currMatch++
 
-                  {
-                    seq: seq,
-                    name: dbResult.Name
-                  }
+          // Determine which discovered recipe matches this expected recipe.
+          for (let ix = 0; ix < articleResults.recipes.length; ix++) {
+            // For each current discovered recipe
+            if ( articleResults.recipes[ix] == expectedRecipesArray[i]) {
+              // If the discovered recipe matches this expected recipe ...
 
-                )
-              )
+              // Add an element indicating the discovered recipe index and
+              //  indicating the match to the currStatus array, then exit
+              //  the loop.
+              currStatus.push([ix, true])
+              break;
             }
+          }
+
         } else {
-            if (!dbResult.discoveredRecipes.split('\n').equals(articleResults.recipes)
-                || articleObj.hasArticleClass != dbResult.hasArticleClass) {
-                console.log("Different results: seq: " + seq.toString() + ", Name: " + dbResult.Name )
-                console.log("articleObj.hasArticleClass: " + articleObj.hasArticleClass);
-                console.log("dbResult.hasArticleClass: " + dbResult.hasArticleClass)
-                console.log("dbResults: " + dbResult.discoveredRecipes)
-                console.log("articleResults: " + articleResults.recipes)
-                allGood = false;
-                validateWindow.webContents.send('article-display', 
-                  JSON.stringify(
-
-                    {
-                      seq: seq,
-                      name: dbResult.Name,
-                      dbClass: bx(dbResult.hasArticleClass),
-                      articleClass: articleObj.hasArticleClass,
-                      dbResult: dbResult.discoveredRecipes.split('\n'),
-                      articleResults: articleResults.recipes
-                    }
-
-                  )
-                )
-            }
+          // If the expected recipe is not included in the array of the 
+          //  current discovered recipes, append an element to the
+          //  currStatus array that indicates the discovered recipes
+          //  array index is null and the expected recipe is not matched
+          currStatus.push([null, false])
         }
+
+        Log("currStatus array: " + JSON.stringify(currStatus))
+
+        // Determine whether this expected recipe is inculded in the 
+        //  database discovered recipes array.
+        // If so, count it.
+        // And add the determination to the dbStatus array
+        if (dbDiscoveredRecipesArray.includes(expectedRecipesArray[i])) {
+          dbMatch++
+          dbStatus.push(true)
+        } else {
+          dbStatus.push(false)
+        }
+      }
+
+      // Create a comparison array that combines the elements of the
+      //  currStatus array and the dbStatus array.  The elements of
+      //  the comparison array have the form:
+      //  [index, currIsMatch, dbIsMatch]
+      //  where index is either the index of the current discovered recipes
+      //               array element that matches ix element of the expected 
+      //               recipes array or null, if the ix element of the expeced
+      //               recipes array is not matched by any element of the 
+      //               current discovered recipes array
+      //        currIsMatch is a boolean indicating whether the ix element
+      //                      of the expected recipes array is matched by
+      //                      and elementof the current discovered recipes
+      //                      array
+      //        dbIsMatch is a boolean indicating whether the ix element
+      //                      of the expected recipes array is matched by
+      //                      and elementof the database discovered recipes
+      //                      array
+      // The comparison array is passed to the renderer process, which uses
+      //  it to color the displayed current discovered recipes
+      comparisonArray = currStatus.map((e, ix) => [e[0], e[1], dbStatus[ix]])
+      //Log("comparisonArray:")
+      //Log(JSON.stringify(comparisonArray))
+
+      Log("currMatch: " + currMatch.toString() + ", dbMatch: " + dbMatch.toString())
+      if (currMatch > dbMatch) {
+        // If more of the current discovered recipes than the database
+        //  discovered recipes match expected recipes, indicate that
+        //  the current results are an improvement
+
+        improved = true
+        //Log("Comparison array:")
+        //Log(JSON.stringify(comparisonArray))
+
+      }
+
     }
-    if (allGood) {
-        console.log("All results as expected")
-        validateWindow.webContents.send('Ok-display');
-    } else {
-      validateWindow.webContents.send('finished');
+
+    if ( !dbRecipesArray.equals(articleResults.recipes)
+      || articleObj.hasArticleClass != bx(dbResult.hasArticleClass)
+      || (articleResults.hasFragmentedTitle != bx(dbResult.hasFragmentedTitle) && !bx(dbResult.isNotSolved)) ) {
+      // If there is a difference between the current parse results and
+      //  the database results, display the article
+
+      // Log("Different results: seq: " + seq.toString() + ", Name: " + dbResult.Name )
+      // Log("First condition: " + !dbRecipesArray.equals(articleResults.recipes) );
+      // Log("recipes split: " + dbRecipesArray )
+      // Log("article recipes: " + articleResults.recipes);
+      // Log("Second condition: " +  articleObj.hasArticleClass != bx(dbResult.hasArticleClass) )
+      // Log("Second condition: ")
+      // Log("articleObj.hasArticleClass: " + articleObj.hasArticleClass)
+      // Log("bx(dbResult.hasArticleClass): " + bx(dbResult.hasArticleClass))
+      // Log( articleObj.hasArticleClass != bx(dbResult.hasArticleClass) )
+      // Log("Third condition: " + (articleResults.hasFragmentedTitle != bx(dbResult.hasFragmentedTitle) && !bx(dbResult.isNotSolved)) )
+      // Log("articleObj.hasArticleClass: " + articleObj.hasArticleClass);
+      // Log("dbResult.hasArticleClass: " + dbResult.hasArticleClass)
+      // Log("articleResults.hasFragmentedTitle: " + articleResults.hasFragmentedTitle);
+      // Log("dbResult.hasFragmentedTitle: " + dbResult.hasFragmentedTitle)
+      // Log("dbResults recipes: " + dbResult.discoveredRecipes)
+      // Log("articleResults recipes: " + articleResults.recipes)
+      // Log("articleResults.isNotSolved: " + articleResults.isNotSolved)
+      // Log("Improved: " + improved)
+
+
+      // Indicate that differences were found
+      allSame = false;
+
+      // Display the different article
+      validateWindow.webContents.send('article-display', 
+        JSON.stringify(
+          {
+            seq: seq,
+            name: dbResult.Name,
+            dbClass: bx(dbResult.hasArticleClass),
+            articleClass: articleObj.hasArticleClass,
+            dbTitle: bx(dbResult.hasFragmentedTitle),
+            articleTitle: articleResults.hasFragmentedTitle,
+            dbResult: dbRecipesArray,
+            articleResults: articleResults.recipes,
+            articleNotSolved: articleResults.isNotSolved,
+            improved: improved,
+            comparison: comparisonArray
+          
+          }
+        )
+      )
     }
+  }
+
+  
+  if (allSame) {
+    // If no differences were found, display that, ...
+    Log("All results as expected")
+    validateWindow.webContents.send('Ok-display');
+  } else {
+    // Otherwise, just remove the 'loading' div
+    validateWindow.webContents.send('finished');
+  }
     
 }
 

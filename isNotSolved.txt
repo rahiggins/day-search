@@ -321,6 +321,114 @@ Seq: 191,  Article: Kitchen Voyeur: Kitchen Sage
     the paragraph previously exmained is taken as the recipe name,
     including the ingredients list.
 
+Seq: 195,  Article: The Way We Eat: Kings of Convenience
+    Second recipe: Recipe name followed by ingredients list
+
+    Recipe name For the _: ingredients list
+
+    For the _: ingredients list
+
+    The 'For the _:' paragraph sets ingredientFound to true and therefore
+    the 'Recipe name' paragraph is not examined for ingredients or capitalized
+    words preceeding ingredients.
+
+Seq: 200,  Article: South France, With a Kick
+    empty
+
+    No recipe markers
+
+Seq: 203,  Article: The Minimalist; For Summer Baking, Take the Top Down
+    Second recipe: recipe name 'Crust'
+
+    Ingredients list in a separate paragraph, which begins with
+    'Crust from Simple Berry Tart recipe, ...'. Paragraph trimmed at
+    'from' and 'Crust ' added to accumRecipeName. 'Crust '.split(' ')
+    yields an array with 2 elements and so 'Crust' is not discarded.
+
+Seq: 206,  Article: Apple Pie, Fourth of July And Pad Thai
+    First recipe: missed
+
+    No recipe marker
+
+    Spurious thrid recipe: Instruction step
+
+    Two recipe steps marked with '1. '. The second one belongs the the first,
+    missed recipe, but was taken as a recipe as itself, possibly due to walk
+    back.
+
+Seq: 209,  Article: Kitchen Voyeur: Chow Hound
+    First recipe: Article name
+
+    Recipe structure:
+
+        1 Recipe name 'For the _:' ingredients list
+
+        2 'For the _:' ingredients list
+
+        3 instruction step (demarcation)
+
+    2 'For the _:' paragraph sets ingredientsFound to true, so 
+    1 Recipe name 'For the _:' is not checked for ingredients, but instead
+    is discarded for terminal puntuation.  Discard for terminal punctuation
+    continues to the beginning of the article, and the article name is used
+    for the recipe name.
+
+Seq: 210,  Article: Sherif May Like It
+    empty
+
+    No recipe marker
+
+Seq: 214,  Article: The Way We Eat: Buried Treasure
+    First recipe, second recipe: <recipe name> Salt
+
+    Recipe name paragraph: <recipe name> Salt <numerated ingredient>
+
+    No lower-case word follows 'Salt', so 'Salt' included in recipe name.
+
+Seq: 219,  Article: Free Ranging
+    Second recipe: <recipe name> Salt
+
+    Recipe name paragraph: <recipe name> Salt <numerated ingredient>
+
+    No lower-case word follows 'Salt', so 'Salt' included in recipe name.
+
+Seq: 220,  Article: Flute Meets Fruit
+    empty
+
+    No recipe marker
+
+Seq: 223,  Article: The Minimalist; A Labor Of Spring
+    Recipe Name not found
+
+    Ingredients list in one paragraph — numerous numerals, but few units
+    of measure,  so ingredients not found, and recipe name paragraph 
+    skipped over.
+
+Seq: 234,  Article: The Way We Eat: Building a Modern, Multistoried Dessert
+    <recipe name> <ingredients list>
+
+    Recipe structure:
+
+        1 Recipe name 'For the _:' <ingredients list>
+
+        2 'For the _ _ _:' <ingredients list>
+
+        3 'For the _ _ _:' <ingredients list>
+
+        4 instruction step (demarcation)
+        
+    3 'For the _:' paragraph sets ingredientsFound to true.
+    2 'For the _ _ _:' paragraph discarded
+    1 Recipe name 'For the _:' <ingredients list>, no terminal punctuation
+
+    1 'For the _:' not at the beginning of the paragraph, so not considered
+    and 1 is used as recipe name.
+    
+Seq: 235,  Article: The Minimalist vs. The Chef; A Passage to India, With Ease
+    Last recipe missed
+
+    Last recipe in the same paragraph as the instruction steps and end-of-recipe
+    marker for the penultimate recipe.  Last recipe has no end-of-recipe marker.
 
 
 

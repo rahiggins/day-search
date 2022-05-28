@@ -1,5 +1,10 @@
 Validate issues:
 
+Need a facility for updating the database when a article is solved
+
+Need to identify articleResults that are closer to the expectedResults
+ than the discovered results
+
 --------------------------------------------------------------------------------
 
 The titleMatch processing in adjustTitle (lib.js) needs review.  The wild population of titles
@@ -15,7 +20,7 @@ In lib.js, function adjustParaText, can 'adapted' be handled in one place?
 
 In lib.js, can the check for Serves and Makes be made case-insensitive?
 
-In lib.js, adjustParaText() - When an ingredients list is sliced
+In lib.js, adjustParaText() - ( still? ) When an ingredients list is sliced
     from a paragraph, if the first ingredient is unquantified, that
     ingredient will be left behind and will be included in the recipe name.
 

@@ -439,7 +439,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
               // console.log("(attribution not found) Paragraph discarded")
               // paraText = ''
             } else {
-              paraText = paraText.substring(0, attribution.index)
+              paraText = paraText.substring(0, attribution.index).trim()
               console.log("(attribution found) Paragraph text trimmed at '" + attribution[0])
             }
 
@@ -527,12 +527,14 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     // After a recipe is parsed, joinAccumRecipeName is called if the 
     //  Input: accumRecipeName array
     //  is not empty.
-    // Output: recipe name
+    // Output: [recipe name <string>, fragmented name <boolean>] 
     //
     // If the accumRecipeName array has more than 1 element, check if 
     //  the last element consists of a single word. If that is the case,
     //  drop the last element before joining the element of the array to
     //  return as the recipe name.
+    // Also return a boolean indicating that returned recipe name is
+    //  composed of fragments.
     console.log("joinAccumRecipeName entered with -")
     console.log(accumRecipeName)
 
@@ -549,14 +551,15 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
 
         // ... return as the recipe name: the elements of the input array 
         //  excluding the last elemet
-        return accumRecipeName.slice(0, length-1).join(' ')
+        let trimmedAccumRecipeName = accumRecipeName.slice(0, length-1);
+        return [trimmedAccumRecipeName.join(' '), trimmedAccumRecipeName.length  > 1]
       }
     }
 
     // If the input array has only one element or if the last element has
     //  more than one word, return as the recipe name all elements of the
     //  input array
-    return accumRecipeName.join(' ')
+    return [accumRecipeName.join(' '), accumRecipeName.length > 1]
   }
   
   // For each recipe marker, indicated by an element of arr[],
@@ -637,8 +640,8 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
         if (paraText == "RECIPES") {
           
           // …the recipe name is the previously accumulated recipe name
-          recipeName = joinAccumRecipeName(accumRecipeName);
-          hasFragmentedTitle = hasFragmentedTitle || accumRecipeName.length > 1;
+          [recipeName, fragmentedTitle] = joinAccumRecipeName(accumRecipeName);
+          hasFragmentedTitle = hasFragmentedTitle || fragmentedTitle;
           console.log("allCAPS hasFragmentedTitle: " + hasFragmentedTitle)
           // Reset the accumulation and exit the find-recipe-name loop
           accumRecipeName = []
@@ -707,7 +710,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
       if (p.colon) {
         let recipeMatch = paraText.match(/^recipe:\s*(.*)$/i)
         if (recipeMatch != null) {
-          paraText = recipeMatch[1];
+          paraText = recipeMatch[1].trim();
           console.log('recipeParse: "recipe:" removed ')
         } else {
         Log("Skipped - colon");
@@ -749,8 +752,8 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
           console.log("terminal punct & accumRecipeName not empty")
           console.log("hasFragmentedTitle: " + hasFragmentedTitle)
           console.log("accumRecipeName length: " + accumRecipeName.length.toString());
-          recipeName = joinAccumRecipeName(accumRecipeName)
-          hasFragmentedTitle = hasFragmentedTitle || accumRecipeName.length > 1;
+          [recipeName, fragmentedTitle] = joinAccumRecipeName(accumRecipeName)
+          hasFragmentedTitle = hasFragmentedTitle || fragmentedTitle;
           Log("Recipe name set to accumRecipeName, hasFragmentedTitle: " + hasFragmentedTitle)
         }
 
@@ -785,8 +788,8 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     Log("accumRecipeName: " + accumRecipeName)
     if (accumRecipeName.length != 0 && !articleObj.isRecipe) {
       Log("Recipe name set to accumRecipeName")
-      recipeName = joinAccumRecipeName(accumRecipeName);
-      hasFragmentedTitle = hasFragmentedTitle || accumRecipeName.length > 1;
+      [recipeName, fragmentedTitle] = joinAccumRecipeName(accumRecipeName);
+      hasFragmentedTitle = hasFragmentedTitle || fragmentedTitle;
       console.log("hasFragmentedTitle: " + hasFragmentedTitle)
     }
     Log("Initial recipe name: " + recipeName)
@@ -1090,15 +1093,16 @@ async function findRecipes($, articleObj, mainWindow, expectedRecipes) {
       articleResults = recipeParse("servesMakes", $, paras, servesMakesPara, articleObj)
     }
   } else {
-    // If no 'endOfRecipe' or '1. ' paragraphs, the article has no recipes
-    articleResults = {hasRecipes: false, recipes: []}
+    // If no 'endOfRecipe', no '1. ' and no servesMakes paragraphs, the article has no recipes
+    Log("No recipe marker => no recipes")
+    articleResults = {hasRecipes: false, recipes: [], hasFragmentedTitle: false}
   }
 
   if (articleResults.hasRecipes) {
     // If the article has recipes, display the article and its embedded recipes
     Log("recipes length: " + articleResults.recipes.length.toString());
     for (let r = 0; r < articleResults.recipes.length; r++) {
-      Log(articleResults.recipes[r])
+      Log(articleResults.recipes[r]);
     }
 
     // If expected recipes were passed to this function,

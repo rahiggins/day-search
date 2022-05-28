@@ -3,6 +3,7 @@
 /node_modules
 /package-lock.json
 articles-startObj.txt
+commit.txt
 curr-lib.js
 eslintrc.json
 forward-lib.js
