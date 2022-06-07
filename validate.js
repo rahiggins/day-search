@@ -6,6 +6,7 @@ const mysql = require('mysql2/promise');
 const cheerio = require('cheerio')
 const fs = require('fs'); // Filesystem functions
 const appPath = process.cwd();
+const updatePath = '/Applications/MAMP/htdocs/exports/article-updates/'
 
 let validateWindow;
 let debug = true;
@@ -50,11 +51,21 @@ Array.prototype.equals = function (array) {
 Object.defineProperty(Array.prototype, "equals", {enumerable: false});
 
 function bx(num) {
-  // Convert MySQL boolean values [0, 1] to [false, true]
-  if (num == 1) {
-    return true
+  // Convert MySQL boolean values [0, 1] to [false, true] and vice versa
+
+  if (typeof num == 'number') {
+    if (num == 1) {
+      return true
+    } else {
+      return false
+    }
   } else {
-    return false
+    if (num){
+      return 1
+    } else {
+      return 0
+    }
+
   }
 }
 
@@ -138,21 +149,78 @@ async function mainline() {
     libName = './lib.js'
   }
   const { getArticleClass, getAuthor, adjustTitle, findRecipes } = require(libName);
-  let table = "articles";
+  const table = "articles";
+
+  function createUpdate(seq, name, solved, articleResults, articleObj) {
+    // Create a MySQL UPDATE statement to update the 'articles' table for an
+    //  article, specified by 'seq', that have been solved or improved, where
+    //  'solved' means the the current parse results match the expected results 
+    //  recorded in the database and 'improved' means the current parse results 
+    //  are closer to the expected results recorded in the database than the parse
+    //  results recorded in the database.
+    // The UPDATE statement updates the hasArticleClass item and the 
+    //  discoveredRecipes item in both the 'solved' and 'improved' cases.  In the 
+    //  'solved' case, the isNotSolved, expectedRecipes and hasFragmentedTitle are
+    //  also updated.
+    //
+    // Input: seq: sequence number of the article to update
+    //        name: Name item from the database
+    //        solved: boolean, indicates whether the results solve the article (true)
+    //                  or just improve it (false)
+    //        articleResults: object, output of function findRecipes
+    //        articleObj: object, output of function adjustTitle plus addition
+    // Output: string, MySQL UPDATE statement, written to:
+    //          `/Applications/MAMP/htdocs/exports/article-updates/${seq}-${name}.txt`
+
+    Log("createUpdate entered with: ")
+    Log(`seq: ${seq.toString()}`)
+    Log(`articleResults: ${JSON.stringify(articleResults)}`)
+    Log('articleObj.hasArticleClass: ' + articleObj.hasArticleClass)
+    const table = "articles";
+
+    let set = `hasArticleClass=${bx(articleObj.hasArticleClass)},
+      discoveredRecipes="${articleResults.recipes.join('\n')}"`
+    if (solved) {
+      set = `isNotSolved=false, expectedRecipes='', hasFragmentedTitle=${bx(articleResults.hasFragmentedTitle)}, ${set}`
+    }
+
+    let updateStmt = `UPDATE ${table} SET ${set} WHERE seq=${seq}`
+    console.log('updateStmt: ' + updateStmt)
+    let fileName = `${updatePath}${seq.toString()}_${name}`
+    fs.writeFileSync(fileName, updateStmt, 'utf8')
+
+  }
+
+
+  // Get the range of sequence numbers to be validated
   let maxResult = await connection.query(`SELECT MAX(seq) FROM ${table}`)
   let max = maxResult[0][0]['MAX(seq)'];
   console.log("Max seq: " + max.toString())
+
+  // Set the database items to be retrieved from each database row
   let cols = 'Name, hasArticleClass, hasFragmentedTitle, isNotSolved, discoveredRecipes, expectedRecipes, html'
-  let allSame = true
+
+  // Assume all results will be the same as the database's results
+  let allSame = true;
+
+  // Define the database results object
   let dbResult;
+
+  // Validate each database row, i.e. each article
   for (let seq = 1; seq <= max; seq++ ) {
     console.log(`Processing seq: ${seq.toString()}`)
+
+    // Retrieve the article's items from the database
     row = await connection.query(`SELECT ${cols} FROM ${table} WHERE seq = ${seq}`)
+
+    // dbResults is an object specifying the retrieved items from this row
     dbResult = row[0][0];
 
+    // If the article was not previously solved ...
     if (bx(dbResult.isNotSolved)) {
       // Create an array of the expected recipes
       var expectedRecipesArray = dbResult.expectedRecipes.split('\n')
+      //Log("Database hasArticleClass: " + dbResult.hasArticleClass)
     }
 
     // Create an array of the database discovered recipes
@@ -172,6 +240,7 @@ async function mainline() {
       }
     }
 
+    // Create a Cheerio query function based on this article's html
     let $ = cheerio.load(dbResult.html)
       
     // Get article title and create articleObj with key 'title'
@@ -181,7 +250,8 @@ async function mainline() {
 
     // Add hasArticleClass to the articleObj
     articleObj['hasArticleClass'] = getArticleClass($)[0];
-    
+    //Log("Current hasArticleClass: " + articleObj.hasArticleClass)
+
     // Add author to the articleObj
     articleObj['author'] = getAuthor($)
 
@@ -209,6 +279,7 @@ async function mainline() {
           })
         )
         articleResults['isNotSolved'] = false
+        createUpdate(seq, dbResult.Name, true, articleResults, articleObj)
       } else {
         articleResults['isNotSolved'] = true
       }
@@ -345,6 +416,8 @@ async function mainline() {
         improved = true
         //Log("Comparison array:")
         //Log(JSON.stringify(comparisonArray))
+
+        createUpdate(seq, dbResult.Name, false, articleResults, articleObj)
 
       }
 

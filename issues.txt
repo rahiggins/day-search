@@ -1,9 +1,6 @@
 Validate issues:
 
-Need a facility for updating the database when a article is solved
-
-Need to identify articleResults that are closer to the expectedResults
- than the discovered results
+Need a facility for updating the database when a article is solved or improved
 
 --------------------------------------------------------------------------------
 
@@ -23,6 +20,34 @@ In lib.js, can the check for Serves and Makes be made case-insensitive?
 In lib.js, adjustParaText() - ( still? ) When an ingredients list is sliced
     from a paragraph, if the first ingredient is unquantified, that
     ingredient will be left behind and will be included in the recipe name.
+
+In lib.js, function adjustParaText,
+
+    The following attribution check code solves this article [seq 156], but breaks
+    many other articles that have a recipe name paragraph followed by
+    an ingredients list paragraph that starts with an unquantified 
+    ingredient, which is appended to the recipe name.
+
+    if (paraText.length > 0) {
+      // If, after slicing off the ingredients list, the paragraph
+      //  text is not empty, the paragraph may contain the recipe
+      //  name.
+      // Check the paragraph text for the case-insensitive phrases
+      //  'total time:', 'time:', 'adapted', or 'from'.
+      let attribution = paraText.match(/(total )*(time:)|(adapted)|(from)/i)
+      if (attribution != null) {
+        // If the paragraph text does contain one of those phrases,
+        //  then discard the that starts with that phrase and
+        //  return only the text that preceeds that phrase.
+        paraText = paraText.substring(0, attribution.index)
+        console.log("(ingredients found) Paragraph text trimmed at '" + attribution[0])
+      }
+    }
+
+    This code can be used if the unquantified first ingredient problem is
+    solved.
+
+    But seq 156 was fixed by the uncapitalized word check, so this is probably obsolete.
 
 -----------------------------------------------------------
 getArticles issues:

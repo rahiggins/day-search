@@ -191,6 +191,12 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
       "clove", "bunch", "sprig", "sheet", "handful", "pinch", "stalk"
     ]
 
+    // Array of lowercase words that might appear in recipes names
+    const lowercaseWords = ["and","de","of","on","a","in","for","au","di","et",
+      "re","al","or","the","with","r","la","at","aux","en","e","y","to","des",
+      "con","alla","an","le","see","also","met","by","from","el","ki","da","ba"]
+
+
     // Trim leading and trailing whitespace from the paragraph text.
     // The text should be trimmed after any adjustment that might expose
     //  leading or trailing whitespace.
@@ -358,15 +364,17 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
             ingredientFound = true;
             numFound = true;
             if (accumRecipeName.length != 0) {
-              console.log("accumRecipeName is not empty: " + accumRecipeName)
+              Log("accumRecipeName is not empty: " + accumRecipeName)
             }
             accumRecipeName = [];
             Log("Ingredients found, accumRecipeName reset");
 
-            // Check the paragraph text for the case-insensitive attribution
+            // Check the remaining paragraph text for the case-insensitive attribution
             //  phrases: total time:', 'time:', 'adapted', or 'from'
             //
-            // If the paragraph text does not contain these prhases,
+            // If the remaining paragraph text does not contain these prhases,
+            //  and the paragraph is not a "For the _:" paragraph (which will
+            //  be handled later), and the last word of the text is capitalized,
             //  then check for capitalized words at the beginning of the 
             //  paragraph - these may be the recipe name.  Scan the 
             //  blank-delimited words of the paragraph until a word that
@@ -379,33 +387,47 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
             //   return a string consisting of the previous words but
             //   excluding the word preceeding the lowercase word.
             //   (If the first ingredient is unquantified, its first word
-            //    will be capitalized).
+            //   will be capitalized).
             //
             // If the paragraph text does contain one of those phrases,
             //  then the paragraph might also contain the recipe name.
             //  In that case, discard the text that starts with that phrase
             //  and return only the text that preceeds that phrase.
 
-            let attribution = paraText.match(/((total )*(time:)|(adapted)|(from))\s/i)
+            // Test for attribution phraase
+            let attribution = paraText.match(/((total )*(time:)|(adapted)|(from))\s/i);
 
-            if (attribution == null) {
-              // If no attribution phrase ...
-              console.log("No attribution")
+            // Test for 'For the _:'
+            let forThe = paraText.match(/^(for (the)*.*:\s?)/i);
 
-              // Split the paragraph text into words
-              let words = paraText.split(' ');
+            // Test for last word capitalized or 
+            let lastWordLowercase;
+            let words = paraText.split(' ');
+            if (words.length > 0) {
+              let lastWordFirst = words[words.length-1].substring(0, 1);
+              lastWordLowercase = lastWordFirst.match(/[a-z]/) != null;
+              Log("Last word: First letter - " + lastWordFirst + ", lastWordLowercase: " + lastWordLowercase)
+            }
 
-              // Assume a recipe name
+            if (attribution == null && forThe == null && !lastWordLowercase) {
+              // If no attribution phrase and not a ForThe_ paragraph and
+              //  last word capitalized ...
+              Log("No attribution and not 'For the _:' last word capitalized")
+
+              // Assume a recipe name 
               let possibleName = true;
-
+              
               for (i = 0; i < words.length; i++) {
                 // For each word, check if its first character is 
                 //  lowwercase or a numeral
                 let first = words[i].substring(0, 1);
                 let firstMatch = first.match(/[a-z]|\d/);
+                console.log("firstMatch: " + JSON.stringify(firstMatch))
                 console.log("i: " + i.toString())
-                console.log(" word: " + words[i] + ", firstMatch: " + firstMatch)
+                console.log(" word: '" + words[i] + "', firstMatch: " + firstMatch)
 
+                let trimmedWords;
+                let lastTrimmedWord;
                 if (firstMatch != null) {
                   // If the first char matches ...
                   if (i == 0) {
@@ -413,34 +435,57 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
                     possibleName = false;
                     break
                   }
-                  if (firstMatch[0].match(/\d/)) {
+                  if (firstMatch[0].match(/\d/) != null) {
                     // Numeral encountered - return previous words
-                    console.log(" numeric")
-                    paraText = words.slice(0, i).join(' ')
+                    console.log(" numeral")
+                    trimmedWords = words.slice(0, i)
+                    lastTrimmedWord = trimmedWords[trimmedWords.length-1];
+                    if (lastTrimmedWord != lastTrimmedWord.toLowerCase()) {                      
+                      paraText = trimmedWords.join(' ')
+                    } else {
+                      paraText = ''
+                    }
                   } else {
-                    if (words[i] == 'and') {
-                      // 'and' can be part of a recipe name, so continue
+                    console.log(" Not numeral")
+                    if ( lowercaseWords.includes(words[i] )) {
+                      // 'and', 'for', etc can be part of a recipe name, so continue
+                      // (Adding 'for' might be a problem in the case of an ingredient, for instance, "Oil for frying")
+                      console.log("Skipping lowercase word: " + words[i])
                       continue
                     }
-                    // Lowercase encounteres - return previous words except
+                    // Lowercase encountered - return previous words except
                     //  for the last one
-                    paraText = words.slice(0, i-1).join(' ')
+                    console.log("Non-numeral")
+                    trimmedWords = words.slice(0, i-1)
+                    if (trimmedWords.length > 0) {
+                      console.log("trimmedWords: " + JSON.stringify(trimmedWords))
+                      lastTrimmedWord = trimmedWords[trimmedWords.length-1];
+                      if (lastTrimmedWord != lastTrimmedWord.toLowerCase()) {                      
+                        paraText = trimmedWords.join(' ')
+                      } else {
+                        paraText = ''
+                      }
+                    } else {
+                      paraText = ''
+                    }
                   }
-                  console.log("Lowercase or numeric encountered - paraText: " + paraText)
+                  Log("Lowercase or numeric encountered - paraText: " + paraText)
                   break
                 }
               }
 
               if (!possibleName) {
-                console.log("No attirbution, no recipe name - paraText emptied")
+                Log("No attirbution, no recipe name - paraText emptied")
                 paraText = ''
               }
 
-              // console.log("(attribution not found) Paragraph discarded")
-              // paraText = ''
-            } else {
+            } else if (attribution != null) {
+              // ... else if there is an attribution phrase
               paraText = paraText.substring(0, attribution.index).trim()
-              console.log("(attribution found) Paragraph text trimmed at '" + attribution[0])
+              Log("(attribution found) Paragraph text trimmed at '" + attribution[0])
+            } else if (lastWordLowercase) {
+              // ... else if the last word is not capitalized, discard the text.
+              paraText = ''
             }
 
             // The following attribution check code solves article seq 156
@@ -547,7 +592,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
 
       if (lastAccum.length == 1) {
         // if the last element consists of one word ...
-        console.log("Last element of accumRecipeName dropped")
+        console.log("Single word last element of accumRecipeName dropped")
 
         // ... return as the recipe name: the elements of the input array 
         //  excluding the last elemet

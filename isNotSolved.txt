@@ -132,85 +132,29 @@ seq: 151,  article: The Way We Eat; Raising the Tapas Bar
 
     No ingredients list or numbered instruction steps
 
-    Last recipe: Octopus Terrine Salted
-
-    Ingredients in separate paragraphs, first ingredient is unquantified
-
 
 seq: 152, article: In Mint Condition
     empty
 
     No recipe marker
 
-
-seq: 156, article: Kitchen Voyeur: The Original 'Unoriginal'
-    First recipe: Recipe Name not found
-
-    Paragraph that contains the recipe name also contains the ingredients
-    list. But because the paragraph does not include 'time' or 'adapted' 
-    phrases, the paragraph is emptied (adjustParaText(), attribution 
-    check) discarding the recipe name.
-
-    Second recipe: recipe name plus ingredients list
-
-    Same situation as the first recipe, but because the paragraph that
-    precedes the recipe name contains an endOfRecipe marker and the 
-    accumRecipeName array is empty, the paragraph previously exmained
-    is taken as the recipe name, including the ingredients list.
-
-    The following attribution check code solves this article, but breaks
-    many other articles that have a recipe name paragraph followed by
-    an ingredients list paragraph that starts with an unquantified 
-    ingredient, which is appended to the recipe name.
-
-    if (paraText.length > 0) {
-      // If, after slicing off the ingredients list, the paragraph
-      //  text is not empty, the paragraph may contain the recipe
-      //  name.
-      // Check the paragraph text for the case-insensitive phrases
-      //  'total time:', 'time:', 'adapted', or 'from'.
-      let attribution = paraText.match(/(total )*(time:)|(adapted)|(from)/i)
-      if (attribution != null) {
-        // If the paragraph text does contain one of those phrases,
-        //  then discard the that starts with that phrase and
-        //  return only the text that preceeds that phrase.
-        paraText = paraText.substring(0, attribution.index)
-        console.log("(ingredients found) Paragraph text trimmed at '" + attribution[0])
-      }
-    }
-
-    This code can be used if the unquantified first ingredient problem is
-    solved.
-
 seq: 161, article: The Arsenal
     First recipe: Recipe Name not found
+    Second recipe: Recipe name followed by text
 
-    Recipe name followed by text ending in teminal punctuation, so the
+    For both recipes, Recipe name is followed by text ending in teminal punctuation, so the
     recipe name paragraph is skipped.
 
-    Last three recipes: Recipe name paragraph also contains text or
-    ingredients list.  Preceding paragraph contains endOfRecipe, so
-    entire recipe name paragraph is taken as recipe name.
+    First recipe, the parse continues to the the beginning of the article, 
+    so recipe name not found.
+
+    Second recipe, the preceding paragraph contains endOfRecipe, so
+    entire subsequent, recipe name paragraph is taken as the recipe name.
 
 seq: 162, article: Bourbonade
     empty
 
     No paragraph with recipe name
-
-Seq: 167,  Article: Kitchen Voyeur: Sunny Side Up
-    First recipe: Recipe Name not found
-
-    Paragraph that contains the recipe name also contains the ingredients
-    list. But because the paragraph does not include 'time' or 'adapted' 
-    phrases, the paragraph is emptied (adjustParaText(), attribution 
-    check) discarding the recipe name.
-
-    Other recipes: recipe name plus ingredients list
-
-    Same situation as the first recipe, but because the paragraph that
-    precedes the recipe name contains an endOfRecipe marker and the 
-    accumRecipeName array is empty, the paragraph previously exmained
-    is taken as the recipe name, including the ingredients list.
 
 Seq: 168,  Article: THE MINIMALIST; So You Couldn't Resist an Extra Dozen Ears?
     Second and subsequent recipes: recipe name includes first
@@ -227,37 +171,9 @@ Seq: 177,  Article: Free Ranging
     endOfRecipe marker paragraph also contains ingedients and steps, so
     igredients not found
 
-    Second recipe: Recipe name followed by ingredients list
-
-    Paragraph that contains the recipe name also contains the ingredients
-    list. But because the paragraph does not include 'time' or 'adapted' 
-    phrases, the paragraph is not not recognized as containing the recipe
-    name and is discarded.  The next paragraph examined contains an    
-    endOfRecipe marker and the accumRecipeName array is empty, so
-    the paragraph previously exmained is taken as the recipe name,
-    including the ingredients list.
-
     Third recipe: missed
 
     Disparate recipe markers understated the number of recipes
-
-Seq: 180,  Article: The Arsenal: Gelée
-    First recipe: Recipe Name not found
-
-    Paragraph that contains the recipe name also contains the ingredients
-    list. But because the paragraph does not include 'time' or 'adapted' 
-    phrases, the paragraph is emptied (adjustParaText(), attribution 
-    check) discarding the recipe name.
-
-    Second recipe: Recipe name followed by ingredients list
-
-    Paragraph that contains the recipe name also contains the ingredients
-    list. But because the paragraph does not include 'time' or 'adapted' 
-    phrases, the paragraph is not not recognized as containing the recipe
-    name and is discarded.  The next paragraph examined contains an    
-    endOfRecipe marker and the accumRecipeName array is empty, so
-    the paragraph previously exmained is taken as the recipe name,
-    including the ingredients list.
 
 Seq: 181,  Article: Surprise, Straight Up
     empty
@@ -272,24 +188,6 @@ Seq: 184,  Article: THE MINIMALIST; In a Stockpot, Home Brew Beats Store-Bought
     name paragraph is passed over.
     Ingredients match result: 1 unpeeled ,1 celery ,2 or ,3 unpeeled ,10 to ,20 parsley ,2 tablespoons ,1 tablespoon 
     
-Seq: 185,  Article: The Way We Eat: Bleu-Plate Special
-    First recipe: Recipe Name not found
-
-    Paragraph that contains the recipe name also contains the ingredients
-    list. But because the paragraph does not include 'time' or 'adapted' 
-    phrases, the paragraph is emptied (adjustParaText(), attribution 
-    check) discarding the recipe name.
-
-    Second recipe: Recipe name followed by ingredients list
-
-    Paragraph that contains the recipe name also contains the ingredients
-    list. But because the paragraph does not include 'time' or 'adapted' 
-    phrases, the paragraph is not not recognized as containing the recipe
-    name and is discarded.  The next paragraph examined contains an    
-    endOfRecipe marker and the accumRecipeName array is empty, so
-    the paragraph previously exmained is taken as the recipe name,
-    including the ingredients list.
-
 Seq: 187,  Article: A Poor Man's Porcini, in a Silly Hat
     First recipe: article name
 
@@ -303,23 +201,6 @@ Seq: 191,  Article: Kitchen Voyeur: Kitchen Sage
     First recipe: missed
 
     No recipe marker
-
-    Second recipe: Recipe Name not found
-
-    Paragraph that contains the recipe name also contains the ingredients
-    list. But because the paragraph does not include 'time' or 'adapted' 
-    phrases, the paragraph is emptied (adjustParaText(), attribution 
-    check) discarding the recipe name.
-
-    Third recipe: Recipe name followed by ingredients list
-
-    Paragraph that contains the recipe name also contains the ingredients
-    list. But because the paragraph does not include 'time' or 'adapted' 
-    phrases, the paragraph is not not recognized as containing the recipe
-    name and is discarded.  The next paragraph examined contains an    
-    endOfRecipe marker and the accumRecipeName array is empty, so
-    the paragraph previously exmained is taken as the recipe name,
-    including the ingredients list.
 
 Seq: 195,  Article: The Way We Eat: Kings of Convenience
     Second recipe: Recipe name followed by ingredients list
@@ -430,8 +311,58 @@ Seq: 235,  Article: The Minimalist vs. The Chef; A Passage to India, With Ease
     Last recipe in the same paragraph as the instruction steps and end-of-recipe
     marker for the penultimate recipe.  Last recipe has no end-of-recipe marker.
 
+Seq: 236,  Article: The Cheat: So You Still Can't Get a Reservation at Babbo?
+    Second recipe missed
 
+    Disparate recipe markers understated the number of recipes
+        1st recipe has only inst
+        2nd recipe has only endOfRecipe
+        3rd recipe has instr and endOfRecipe
 
+        instr chosen, skipping 2nd recipe
+
+Seq: 237,  Article: Here's to Mom. And Dad.
+    empty
+
+    No recipe marker
+
+Seq: 242,  Article: Pit Stop
+    Recipe missed
+
+    endOfRecipe marker immediately follows recipe name; parse starts at the 
+    paragraph preceeding the recipe name
+
+Seq: 243,  Article: Bright Young Things
+    First recipe: first instruction step
+
+    demarcation: instr
+
+    The paragraph preceeding the the first instruction step, which contains the
+    recipe name, contains an endOfRecipe marker and so is not checked for an
+    ingredients list, which might have discovered the recipe name. The paragraph  
+    also has terminal punctuation, which causes the first instruction step to be
+    taken as the recipe name.
+
+Seq: 246, Article: The NoHo Corral
+    empty
+
+    No recipe marker
+
+Seq: 249,  Article: A Real Drinking Bar
+    empty
+
+    No recipe marker
+
+Seq: 254,  Article: The Way We Eat: Mini-Pearl
+    Second recipe: missed
+
+    No recipe marker
+
+    4th recipe: Recipe name followed by ingredients list and instructions and
+    terminal puncuation.
+
+    Recipe name paragraph skipped because of terminal punct.  Preceeding paragraph
+    has endOfRecipe, so subsequent paragraph taken as recipe name.
 
 
 
