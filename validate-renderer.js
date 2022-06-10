@@ -139,6 +139,7 @@ window.validate.onArticleDisplay( (arg) => {
 
         // For each discovered recipe ...
         for (i = 0; i < array.length; i++) {
+            Log("Discovered recipe index: " + i.toString())
 
             // Create a <p> element and set its bottom margin
             var p = document.createElement('p');
@@ -166,7 +167,15 @@ window.validate.onArticleDisplay( (arg) => {
                         // Select the comparison array element that corresponds to 
                         //  this current discovered recipe
                         let comparand  = comparison.filter(e => e[0] == i)[0]
+
+                        if (comparand == undefined) {
+                            // If no comparison array element corresponds, use the
+                            //   ith comparison element
+                            comparand = comparison[i]
+                        }
+
                         Log("Improved, comparand: " + JSON.stringify(comparand))
+                        // Seq 263: comparand undefined <---<<
 
                         if (comparand[1] && !comparand[2]) {
                             // If the current recipe matches the expected recipe and the 

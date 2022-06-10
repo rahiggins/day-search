@@ -1,8 +1,3 @@
-Validate issues:
-
-Need a facility for updating the database when a article is solved or improved
-
---------------------------------------------------------------------------------
 
 The titleMatch processing in adjustTitle (lib.js) needs review.  The wild population of titles
  should be inventoried.
@@ -48,7 +43,7 @@ In lib.js, function adjustParaText,
     solved.
 
     But seq 156 was fixed by the uncapitalized word check, so this is probably obsolete.
-
+    
 -----------------------------------------------------------
 getArticles issues:
 

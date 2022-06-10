@@ -351,7 +351,9 @@ async function mainline() {
           // Determine which discovered recipe matches this expected recipe.
           for (let ix = 0; ix < articleResults.recipes.length; ix++) {
             // For each current discovered recipe
+            
             if ( articleResults.recipes[ix] == expectedRecipesArray[i]) {
+            // Try this: if ( articleResults.recipes[ix].startsWith(expectedRecipesArray[i]) ) {
               // If the discovered recipe matches this expected recipe ...
 
               // Add an element indicating the discovered recipe index and
