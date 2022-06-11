@@ -196,6 +196,8 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
       "re","al","or","the","with","r","la","at","aux","en","e","y","to","des",
       "con","alla","an","le","see","also","met","by","from","el","ki","da","ba"]
 
+    // Regular expresion to match attribution\time phrases that may follow a recipe name
+    const attributionRx = new RegExp('(total )*(time:)|(\\(.*adapted.*\\))|(adapted)|(from\\b)', 'i')
 
     // Trim leading and trailing whitespace from the paragraph text.
     // The text should be trimmed after any adjustment that might expose
@@ -394,7 +396,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
             //  and return only the text that preceeds that phrase.
 
             // Test for attribution phrase
-            let attribution = paraText.match(/((total )*(time:)|(adapted)|(from))\s/i);
+            let attribution = paraText.match(attributionRx);
 
             // Test for 'For the _:'
             let forThe = paraText.match(/^(for (the)*.*:\s?)/i);
@@ -404,7 +406,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
 
             if (attribution == null && forThe == null) {
               // If no attribution phrase and not a ForThe_ paragraph ...
-              Log("No attribution and not 'For the _:' last word capitalized")
+              Log("No attribution and not 'For the _:'")
 
               // Assume a recipe name 
               let possibleName = true;
@@ -540,8 +542,8 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     //  'adapteted' (case-insensitive) truncate the
     //  text at the matched phrase.
 
-    // Try to match the phrases descibed above in the paragraph text
-    let ta = paraText.match(/(total )*(time:)|(\(.*adapted.*\))|(adapted)/i)
+    // Try to match the phrases descibed above in the paragraph 
+    let ta = paraText.match(attributionRx);
 
     if (ta != null) {
       // If one of the phrases is matched, truncate the paragraph text at 

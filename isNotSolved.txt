@@ -1,11 +1,3 @@
-seq: 9, article: In the Sugarhouse, a Slow, Steamy Rite of Spring
-    MAPLE-GLAZED MEATLOAF From the "Jimtown Store Cookbook," by Carrie Brown, John Werner and Michael McLaughlin (HarperCollins, 2002)
-
-    Paragraph containing the recipe name contains attribution and time,
-    but attribution is in the form of "From ..." instead of "Adapted ..."
-
-    Could by fixed by case mismatch
-
 seq: 15, article: Leg Man
     First recipe: Recipe Name not found
 
@@ -23,7 +15,7 @@ seq: 30: article: EATING WELL; Advisories on Fish and the Pitfalls of Good Inten
     First recipe: A Compromise, but Not in Taste
 
     Author name (MARIAN BURROS) is its owm paragraph, rather than appended 
-    to the paragraph preceeding the recipe name.  Several paragraphs preceeding
+    to the paragraph preceding the recipe name.  Several paragraphs preceding
     the autohr name paragraph were skipped until a paragraph without terminal
     puncuation was encountered (A Compromise, but Not in Taste), which was
     taken as the recipe name.
@@ -46,16 +38,11 @@ seq: 60, article: Free Ranging
     No ingrdients list
 
 seq: 83, article: Now Serving: Bar Necessities
-    MAKES 24 SERVINGS.
+    First recipe: MAKES 24 SERVINGS.
 
     In para() MAKES 24 SERVINGS. does not set skip as true because it's 
         all caps, but it does set allCAPS to true, so it is taken as the
         recipe name
-    
-    Hot Port Sangaree From Audrey Saunders. MAKES ABOUT 1 QUART, OR 8 SERVINGS.
-
-    '1 QUART, OR 8 SERVINGS.' because allCAPS
-    'From Audrey Saunders. MAKES ABOUT' because numFound
 
 seq: 95; article: The Family Ticket; 1/2 Ounce Of Grenadine Makes A Kiddie Cocktail
     empty
@@ -86,7 +73,7 @@ seq: 133, article: Eat, Memory: The Sixth Sense
     (Shrimp and Garlic)
 
     Second recipe name fragmented, but the first fragment was included in the
-        paragraph preceeding the recipe.  So the recipe name consisted of
+        paragraph preceding the recipe.  So the recipe name consisted of
         only the second fragment.
 
 seq: 142, article: Eat, Memory: Line of Sight
@@ -168,10 +155,10 @@ Seq: 184,  Article: THE MINIMALIST; In a Stockpot, Home Brew Beats Store-Bought
 Seq: 187,  Article: A Poor Man's Porcini, in a Silly Hat
     First recipe: article name
 
-    The paragraph preceeding the recipe name paragraph consists of the 
+    The paragraph preceding the recipe name paragraph consists of the 
     author name.  This paragraph is discarded and the accumRecipeName
     array is emptied.  Because the accumRecipeName array is empty, the 
-    each preceeding paragraph is skipped until the article name is taken
+    each preceding paragraph is skipped until the article name is taken
     as the recipe name.
 
 Seq: 191,  Article: Kitchen Voyeur: Kitchen Sage
@@ -188,7 +175,7 @@ Seq: 195,  Article: The Way We Eat: Kings of Convenience
 
     The 'For the _:' paragraph sets ingredientFound to true and therefore
     the 'Recipe name' paragraph is not examined for ingredients or capitalized
-    words preceeding ingredients.
+    words preceding ingredients.
 
 Seq: 200,  Article: South France, With a Kick
     empty
@@ -307,14 +294,14 @@ Seq: 242,  Article: Pit Stop
     Recipe missed
 
     endOfRecipe marker immediately follows recipe name; parse starts at the 
-    paragraph preceeding the recipe name
+    paragraph preceding the recipe name
 
 Seq: 243,  Article: Bright Young Things
     First recipe: first instruction step
 
     demarcation: instr
 
-    The paragraph preceeding the the first instruction step, which contains the
+    The paragraph preceding the the first instruction step, which contains the
     recipe name, contains an endOfRecipe marker and so is not checked for an
     ingredients list, which might have discovered the recipe name. The paragraph  
     also has terminal punctuation, which causes the first instruction step to be
@@ -338,7 +325,7 @@ Seq: 254,  Article: The Way We Eat: Mini-Pearl
     4th recipe: Recipe name followed by ingredients list and instructions and
     terminal puncuation.
 
-    Recipe name paragraph skipped because of terminal punct.  Preceeding paragraph
+    Recipe name paragraph skipped because of terminal punct.  preceding paragraph
     has endOfRecipe, so subsequent paragraph taken as recipe name.
 
 Seq: 259,  Article: It's Spring. Line 'Em Up.
@@ -356,7 +343,7 @@ Seq: 263,  Article: Free Ranging
 
     Ingredients list starts with "Olive oil 1 3/4 pounds wild ...". Paragraph is
     sliced at "1 3/4".  Last word of remaining text is uncapitalized, so paragrapgh
-    is discarded.  Preceeding paragraph ends with terminal punct, so entire
+    is discarded.  preceding paragraph ends with terminal punct, so entire
     subsequent paragraph is taken as the recipe name.
 
     Forth recipe: <recipe name> <ingredients list>
@@ -371,7 +358,7 @@ Seq: 268,  Article: The Arsenal
     Ingredients list not recognized because 2 of 3 ingredients are of the form:
     \d \noun
     e.g. 1 lemon, not \d \UOM
-    Paragraph ends with terminal punct, so skipped.  Preceeding paragraph has
+    Paragraph ends with terminal punct, so skipped.  preceding paragraph has
     no ingredients list and ends with terminal punct so skipped, and is the
     first paragraph of the article, so recipe name not found.
 
@@ -380,5 +367,52 @@ Seq: 269,  Article: Floating on the Deep Blue
 
     No recipe marker
 
+Seq: 277,  Article: Eat, Memory: The Absolutely No-Anything Diet
+    First recipe: Recipe Name not found
 
+    <recipe name> <ingredients list>
+    Bullshit ingredients list - 1 ingredient out of 4 quantities
+
+Seq: 278,  Article: The Sipping Point
+    First recipe: Recipe Name not found
+
+    Recipe name, ingredients list, instructions and recipe marker in same paragraph,
+    so recipe name not found
+
+Seq: 279,  Article: The Mantry
+    First recipe: Recipe Name not found
+    Second recipe: Preheat
+
+    In both cases: <recipe name> <endOfRecipe>
+
+    First recipe, scan goes to first article paragraph looking for ingredients
+        list
     
+    Second recipe: preceding paragraph contains ingredients list, text preceding
+        list taken as recipe name
+
+Seq: 281,  Article: Turning Back a Page
+    empty
+    
+    No recipe marker
+
+Seq: 288,  Article: The Way We Eat: Tex Macs
+    First recipe: Recipe Name not found
+
+    Recipe name, instructions and recipe marker in same paragraph, so recipe name
+    not found (parse reached top of article).
+
+    Second recipe: <recipe name> <instructions and recipe marker>
+
+    Recipe name, instructions and recipe marker in same paragraph, preceding paragraph
+    contains endOfRecipe marker, so paragraph subsequent to it taken as recipe name.
+
+Seq: 289,  Article: Warm-Up Act
+    empty
+
+    No recipe marker
+
+Seq: 298,  Article: Sweet Deceit
+    empty
+
+    No recipe marker

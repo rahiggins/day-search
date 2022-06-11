@@ -43,11 +43,15 @@ In lib.js, function adjustParaText,
     solved.
 
     But seq 156 was fixed by the uncapitalized word check, so this is probably obsolete.
-    
+
 -----------------------------------------------------------
 getArticles issues:
 
 'Save and Quit' button does not update startObj.txt
+
+Duplicate rows:
+  244, 245
+  231, 232
 
 
 
