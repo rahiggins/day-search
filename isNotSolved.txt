@@ -416,3 +416,37 @@ Seq: 298,  Article: Sweet Deceit
     empty
 
     No recipe marker
+
+Seq: 303,  Article: The Arsenal
+    First recipe: Recipe Name not found
+
+    Recipe name, instructions and recipe marker in same paragraph, so recipe name
+    not found (parse reached top of article).
+
+Seq: 308,  Article: Raspberried in the Snow
+    empty
+
+    No recipe marker
+
+Seq: 323,  Article: Free Ranging
+    Second recipe: <recipe name> <ingredients list>
+    Third recipe: missed
+
+    Second recipe has no recipe marker, so only 2 recipes expected.  
+    First recipe processed correctly.
+    Second recipe parse starts with paragraph containing the third recipe name
+    followed by an ingredients list. Third recipe name correctly extracted from
+    this paragraph and added to accumRecipeName.
+    The next (preceeding) paragraph parsed: 'Adapted from David Pasternack, chef at Esca.'
+    is not modified by adjustParaText.  Because p.adapted is true, recipeParse empties
+    accumRecipeName and continues.
+    The next (preceeding) paragraph parsed: 'Pickled Jerusalem Artichokes 3 cups water ...'
+    is skipped due to terminal punctuation.
+    The next (preceeding) paragraph parsed: '2. Pass the artichokes and potatoes ... Serves 4.'
+    has endOfRecipe marker, so parse backs up to 'Pickled Jerusalem Artichokes 3 cups water ...'
+    and takes the entire paragraph as the recipe name. 
+
+Seq: 324,  Article: Eat, Memory: Michelin Man
+    empty
+
+    No recipe marker

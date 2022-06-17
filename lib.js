@@ -7,6 +7,7 @@
 //  - getArticleClass
 //  - recipeParse
 //    - adjustParaText
+//    - joinAccumRecipeName
 //  - para
 //  - adjustTitle
 //    - checkForBeverage
@@ -17,7 +18,8 @@
 
 // index.js calls getAuthor, getArticleClass, adjustTitle and findRecipe
 
-// findrecipe calls recipeParse, which calls adjustParaText and para
+// findrecipe calls recipeParse, which calls adjustParaText, 
+//  joinAccumRecipeName and para
 
 // adjustParaText calls para
 
@@ -170,9 +172,13 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     //     move the terminal punctuation to the end of the paragraph 
     //  - If ingredients have not yet been identified,
     //     Check for ingredients list contained in a single <p> element.
-    //       If found, not that ingredients were found and discard the parapraph
+    //       If found, note that ingredients were found and discard the parapraph
     //       For a single ingredient paragraph with terminal punctuation,
     //         strip the terminal punctuation
+    //  - Check for a paragraph that ends with:
+    //        [adapted from ...] [total ]time: ...
+    //      If found, truncate the paragraph at that phrase, discarding its 
+    //      terminal punctuation.  
     //  - If the paragraph ends with terminal punctuation, return the paragraph,
     //    else ...
     //  - Remove 'For the _:' phrases
@@ -267,6 +273,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     if (!ingredientFound) {
       // If ingredients haven't been found yet,
       //  check for ingredients list in the same <p> element
+      console.log("Ingredients not yet found")
 
       // Characterize the paragraph text
       pCharacteristics = para(paraText);
@@ -510,6 +517,26 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
 
       }
 
+    } else {
+      console.log("Ingredients previously found")
+    }
+
+    // Sometimes the paragraph containing the recipe name has the form:
+    //  <recipe name> [adapted from ...] time: ... <terminal punctuation>
+    // Paragraphs of this form do not include an ingredients list, so ingredients 
+    //  were previously found.
+    // Remove these phrases following the recipe name, along with the terminal 
+    //  puncutation, so that the terminal punctuation does not cause the paragraph 
+    //  containing the recipe name to be discarded.
+
+    // Look for "adapted from... [total ]time:" or "[total ]time:"
+    let tm = paraText.match(/(adapted from\b.*)?(total )?(time:)/i);
+
+    if (tm != null) {
+      // If phrase is matched, truncate the paragraph text at 
+      //  the matched phrase.
+      paraText = paraText.substring(0,tm.index).trim();
+      console.log("paraText truncated at " + tm[0])
     }
     
     // If the paragraph ends with terminal puntuation, return the paragraph
