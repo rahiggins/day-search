@@ -450,3 +450,60 @@ Seq: 324,  Article: Eat, Memory: Michelin Man
     empty
 
     No recipe marker
+
+Seq: 331,  Article: The Arsenal
+    First recipe: <recipe name> <ingrdients>
+
+    Recipe name paragraph includes some ingredients, but the subsequent paragraph,
+    parse before the recipe name paragraph also contains ingredients, so the 
+    recipe name paragraph is not checked for ingredients.
+
+    Second recipe: missed
+
+    No recipe marker 
+
+    Third recipe: <recipe name> <ingrdients>
+
+    Same cause as the first recipe
+
+Seq: 332,  Article: At My Table; Take That, Dr. Atkins: Double Carbs
+    Second recipe: <recipe name> Salt
+
+    Ingredients is separate <p> elements.  First ingredient is unquantified and
+    so is appended to the recipe name
+
+Seq: 334,  Article: Party Politic
+    First recipe: Text - a paragraph preceding the recipe name
+
+    The recipe's last paragraph is 'Serves 10.'  This is taken as a servesMakes
+    marker, rather than endOfRecipe, and the demarcation is set to servesMakes.  
+    The recipe name paragraph includes a 'For the _' phrase and an ingredients list,
+    ending with terminal punctuation.  Because the demarcation is servesMakes,
+    ingedientsFound is immediately set to true, and therefore the recipe name
+    paragrapgh is not checked for ingredients and is skipped because of its 
+    termainal punctuation.  Eventually, the parse settles on a paragrapgh in 
+    the article text.
+
+Seq: 335,  Article: A Bloody Mary, Squared
+    Second recipe: <recipe name> (for six cocktails)
+
+    Excise '(for _)' phrases?
+
+Seq: 345,  Article: The Arsenal
+    First recipe: <article name>
+
+    The recipe's last paragraph is 'Serves 6. Adapted from Dorie Greenspan.'  
+    This is taken as a servesMakes marker, rather than endOfRecipe, and the
+    demarcation is set to servesMakes.  
+    The recipe name paragraph includes an ingredients list,
+    ending with terminal punctuation.  Because the demarcation is servesMakes,
+    ingedientsFound is immediately set to true, and therefore the recipe name
+    paragrapgh is not checked for ingredients and is skipped because of its 
+    termainal punctuation. The parse continues to the start of the article,
+    and the article name is taken as the recipe name.
+
+Seq: 346,  Article: Orpheus Ascending
+    empty
+
+    No recipe markers
+

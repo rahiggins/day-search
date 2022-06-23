@@ -96,7 +96,8 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
   // Parse article page text for recipe names
   // Called by: findRecipe
   // Input:
-  //  - Name of demarcation in the passed array, "instr" or "end" or "servesMakes"
+  //  - Name of demarcation in the passed array, 
+  //      "instr", "end", "servesMakes" or "bracketedServes"
   //  - Cheerio function bound to the article HTML
   //  - Array of the <p> elements in the article (Cheerio objects)
   //  - Array of indices of the paras array that are recipe demarcations
@@ -132,6 +133,9 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
   //      --- ends with terminal punctuation - 
   //          a period, question mark or exclamation point or that
   //      --- consists of RECIPES
+  //  - or the text preceding an ingredients list in a <p> element
+  //  - or the text preceding a '[adapted from ...][total ]time:' phrase in a 
+  //      a <p> element
   //
   //  Because recipe names can be split between consecutive <p> elements
   //   and because definitive identification of a recipe name depends on
@@ -159,7 +163,10 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
   let ingredientFound = false;
   let numFound = false;
 
-  if (demarcation == 'servesMakes') {
+  // These demarcations occur between the ingredients list and the recipe name,
+  //  so for these demarcations indicate that ingredients have been found and
+  //  numbered paragraphs have been found
+  if (demarcation == 'servesMakes' || demarcation == 'bracketedServes') {
     ingredientFound = true;
     numFound = true;
   }
@@ -167,6 +174,8 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
   function adjustParaText(paraText) {
     // Adjust <p> element text before determining whether it's a recipe name
     // Adjustments:
+    //  - When the demarcation is 'bracketedServes', if the paragraph contains 
+    //      '[serves n]', truncate the paragraph at that phrase.
     //  - Remove author name at the end a paragraph
     //  - If the paragraph ends with terminal punctuation [.?!] followed by ['")],
     //     move the terminal punctuation to the end of the paragraph 
@@ -186,6 +195,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     Log("adjustParaText called with -")
     Log(paraText)
     Log("ingredientFound: " + ingredientFound)
+    Log("Demarcation: " + demarcation)
 
     // Array of ingredient units of measurement
     const unitsOfMeasurement = [
@@ -204,6 +214,19 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
 
     // Regular expresion to match attribution\time phrases that may follow a recipe name
     const attributionRx = new RegExp('(total )*(time:)|(\\(.*adapted.*\\))|(adapted)|(from\\b)', 'i')
+
+    // Regular expression to match '[serves n]'
+    const bracketedServesRx = new RegExp('\\[serves\\s\\d+\\]')
+
+    // Truncate the paragraph when the demarcation is 'bracketedServes' and
+    //  the paragraph contains '[serves n]'
+    if (demarcation == 'bracketedServes') {
+      let bracketedServesMatch = paraText.match(bracketedServesRx)
+      if (bracketedServesMatch != null) {
+        paraText = paraText.slice(0,bracketedServesMatch.index)
+        console.log("Bracketed Serves slice: " + "'" + paraText + "'")
+      }
+    }
 
     // Trim leading and trailing whitespace from the paragraph text.
     // The text should be trimmed after any adjustment that might expose
@@ -658,17 +681,24 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     //   recipe name as title, not marked Recipe. Distinguish from FOOTNOTES
     //   by ingredientFound
 
-    if (demarcation != "servesMakes") {
-      // If the demarcation is 'servesMakes', ingredientsFound and
-      //  numFound should always be true.  Otherwise, reset those to 
-      //  false for each recipe marker
+    if (demarcation != "servesMakes" && demarcation != "bracketedServes") {
+      // If the demarcation is 'servesMakes' or 'bracketedServes',
+      //  ingredientsFound and numFound should always be true.
+      //  Otherwise, reset those to false for each recipe marker.
       ingredientFound = false;
       numFound = false; // Don't concat paras until a numeral-started paragraph is found
     }
 
-    // Walk back through <p> elements preceeding the recipe marker, 
-    //  "endOfRecipeRx" or "1. ", examining each to identify the recipe name
-    for (let i = arr[j]-1; i > -1; i--) {
+    // Start the parse with the paragraph preceding the one containing the recipe
+    //  marker, unless the demarcation is 'bracketedServes', in which case the
+    //  parse starts with the paragraph containing the 'bracketedServes' marker.
+    let start = arr[j]-1;
+    if (demarcation == 'bracketedServes') {
+      start = arr[j]
+    }
+
+    // Walk back through <p> elements, examining each to identify the recipe name
+    for (let i = start; i > -1; i--) {
 
       // Starting in early 2022, a section with attribute role=complementary that
       //  contains <p> elements may be inserted at arbitary locations
@@ -1087,95 +1117,136 @@ async function findRecipes($, articleObj, mainWindow, expectedRecipes) {
   let paras = $('p',articleBody);
   Log("Number of paragraphs: " + paras.length.toString());
 
-  // Create an array (endPara) of <p> elements whose text matches 
-  //  the endOfRecipeRx regular expression
-  //  These paragraphs mark the end of a recipe.
-  // Also create an array (instrPara) of <p> elements whose text starts with "1. "
-  //  The paragraphs mark the first instruction step of a recipe.
-  // Also create an array (correctPara) of <p> elements whose text starts with
-  //  'Correction:'.  Ignore any recipe markers that follow the first 
-  //  'Correction:' paragraph.
-  let endPara = [];
-  let instrPara = [];
+  // Examine each <p> element to see if it contains a recipe marker, i.e., a 
+  //  phrase that occurs only once per recipe. There are several such phrases, and
+  //  the recipes in an article can have multiple markers and different markers, or
+  //  no markers.
+  // The markers (demarcations) are named:
+  let demarcations = ['bracketedServes', 'servesMakes', 'instr', 'end']
+  // The demarcations are ordered by their proximity to the recipe name.
+  //  'bracketedServes' markers are closer to the recipe name than 'end' markers.
+  // The article will be parsed using the most numerous marker, and among equally
+  //  numerous markers, the closest to the recipe name.
+
+  
+  
+  // The following arrays are used to record the indices in the paras array of
+  //  the <p> elements that contain the associated marker, i.e., bracketedServesPara
+  //  comprises the indices of <p> elements that contain 'bracketedServes' markers and
+  //  endPara comprises the indices of <p> elements that contain 'end' markers.
+  let bracketedServesPara = [];
   let servesMakesPara = [];
+  let instrPara = [];
+  let endPara = [];
+
+  // Also create an array (correctPara) of the indices of <p> elements whose text
+  //  starts with 'Correction:'.  Any recipe markers that follow the first 
+  //  'Correction:' paragraph will be ignored.
   let correctPara = [];
+
   $(paras).each( function(k, elem) {
+    // For each <p> element, look for all the recipe markers.  Record any marker found
+    //  in its associated array.
     //Log("Para " + k.toString() + " starts with: " + $(this).text().substr(0, 10))
-      if ($(this).text().trim().match(endOfRecipeRX) != null) {
-          //Log("Pushed endOfRecipe para")
-          endPara.push(k)
-      }
-      if ($(this).text().trim().startsWith("1. ")) {
-          //Log("Pushed 1. para")
-          instrPara.push(k)
-      }
-      if ($(this).text().trim().match(/^(Serves|Makes(\sabout)*)\s\d/) != null) {
-        //Log("Pushed servesMakes para")
-        servesMakesPara.push(k)
-      }
-      if ($(this).text().trim().match(/correction:/i) != null) {
-          //Log("Pushed Correction para")
-          correctPara.push(k)
-      }
+
+    if ($(this).text().trim().match(/\[serves\s\d+\]/) != null) {
+      // Look for a 'bracketedServes' marker: '[serves n]'
+      //Log("Pushed bracketedServes para")
+      bracketedServesPara.push(k)
+    }
+
+    if ($(this).text().trim().match(/^(Serves|Makes(\sabout)*)\s\d/) != null) {
+      // Look for a 'servesMakes' marker: 'Serves [about] n' or 'Makes [about] n'
+      //  at the beginning of the paragraph
+      //Log("Pushed servesMakes para")
+      servesMakesPara.push(k)
+    }
+    
+    if ($(this).text().trim().startsWith("1. ")) {
+      // Look for an 'instr' marker: '1. ' at the start of a paragraph
+      //Log("Pushed 1. para")
+      instrPara.push(k)
+    }
+
+    if ($(this).text().trim().match(endOfRecipeRX) != null) {
+      // Look for an 'end' marker: a paragrpah that matches the endOfRecipeRX 
+      //  regular expression: 'Yield:|.+Serves|Makes\\s\\w*\\s*\\d'
+      //Log("Pushed endOfRecipe para")
+      endPara.push(k)
+    }
+
+    if ($(this).text().trim().match(/correction:/i) != null) {
+      // Look for correction paragraphs
+      //Log("Pushed Correction para")
+      correctPara.push(k)
+    }
+
   })
+
+  // Each element of the markers array is an array of paras array indices of <p>
+  //  elements that contain the associated recipe marker.
+  let markers = [bracketedServesPara, servesMakesPara, instrPara, endPara]
 
   // If the article includes corrections, which are appended to the end
   //  of the article, the corrections may include a full recipe.  For the
   //  purpose of identifying recipe names, ignore these recipe corrections.
-  // Update the endPara and instrPara arrays to eliminate markers that
-  //  follow the first Correction: paragraph.
+  // Update all the marker arrays to eliminate markers that
+  //  follow the first 'Correction:' paragraph.
   if (correctPara.length > 0) {
-    console.log("Correction para exists")
-    let firstCorrection = correctPara[0]
-    if (endPara[endPara.length-1] > firstCorrection) {
-      console.log("  endPara trimmed")
-      endPara = endPara.filter(i => i < firstCorrection)
-    }
+    Log("Correction para exists")
 
-    if (instrPara[instrPara.length-1] > firstCorrection) {
-      console.log("  instrPara trimmed")
-      instrPara = instrPara.filter(i => i < firstCorrection)
-    }
+    // firstCorrection is the index of the first 'Correction:' paragrapgh.
+    //  All recipe markers following that index are ignored.
+    let firstCorrection = correctPara[0];
+
+    markers.forEach( (arr, ix) => {
+      // For each marker array ...
+      if (arr[arr.length-1] > firstCorrection) {
+        // If the last element follows the first correction paragraph,
+        //  discard all elements that follow the first correction paragraph.
+        markers[ix] = arr.filter(i => i < firstCorrection)
+        Log(`${demarcations[ix]} array trimmed`)
+      }
+    })
+
   }
+
+  // Each element of the markerNumbers array is the number of paragraphs that 
+  //  include the associated recipe marker
+  let markerNumbers = markers.map( (m) => m.length)
+  Log("markers: " + JSON.stringify(markers))
+  Log("markerNumbers: " + JSON.stringify(markerNumbers))
+
+  // Determine which recipe marker is the most numerous.  The number of the most
+  //  numerous marker is taken as the number of recipes in the article.
+  // If multiple markers have the most numerous value, the first marker to have
+  //  that value is used.  
+  // maxIndex is set to the index of the chosen most numerous value.
   
-  // Get the number of endOfRecipe paragraphs and of '1. ' paragraphs
-  let endRecipes = endPara.length; // endOfRecipe paragraphs
-  let instrRecipes = instrPara.length; // '1. ' paragraphs
-  let servesMakesRecipes = servesMakesPara.length; // Serves|Makes paragraph
-  console.log("endRecipes: " + endRecipes.toString())
-  console.log("instrRecipes: " + instrRecipes.toString())
-  console.log("servesMakesRecipes: " + servesMakesRecipes.toString())
-  if (endRecipes == instrRecipes) {
-    // If those numbers are the same...
-    Log("Recipes: " + endRecipes.toString());
-  } else {
-    // If they're different...
-    Log("Recipe mismatch: endOfRecipe " + endRecipes.toString() + ", 1.: " + instrRecipes.toString())
-  }
-
-  // Sometimes, recipes don't end with a paragraph that matches the 
-  //  endOfRecipeRx regexp, (1/29/2006 It Takes a Village)
-  // Sometimes, recipe instruction steps aren't numbered (?)
-  // In order to identify recipes, use the more numerous marker.
-  //  If both markers are equal, use the first instruction step marker
-  if (instrRecipes > 0 || endRecipes > 0 || servesMakesRecipes > 0) {
-    // If any '1. ' or 'endOfRecipe' paragraphs were found, parse the article
-    //  for recipes.
-    if (instrRecipes >= endRecipes && instrRecipes > servesMakesRecipes) {
-      // If '1. ' paragraphs are as or more numerous than 'endOfRecipe'
-      //  paragraphs and more numerous than the 'servesMakes' paragraphs,
-      //  parse the article using '1. ' as the marker for a recipe
-      articleResults = recipeParse("instr", $, paras, instrPara, articleObj)
-    } else if (endRecipes > instrRecipes && endRecipes > servesMakesRecipes ) {
-      // Else if 'endRecipe' are more numerous than the other 2 paragraphs, 
-      //  parse the article using 'endOfRecipe' as the marker for a recipe
-      articleResults = recipeParse("end", $, paras, endPara, articleObj)
-    } else if (servesMakesRecipes >= endRecipes && servesMakesRecipes >= instrRecipes) {
-      // Otherwise, parse the article using 'servesMakes' as the marker for a recipe
-      articleResults = recipeParse("servesMakes", $, paras, servesMakesPara, articleObj)
+  let maxIndex = -1;
+  let numberOfRecipes = markerNumbers.reduce( (prev, curr, index) => {
+    // For each markerNumbers element ...
+    if (curr > prev) {
+      // If the current array element is greater than the previous most numerous value,
+      //  the current array element becomes the most numerous value.  Set maxIndex.
+      maxIndex = index
+      return curr
+    } else {
+      // Otherwise, retain the previously indentified most numerous value
+      return prev
     }
+  }, 0)
+
+  Log("Reduce results:")
+  Log("Number of recipes: " + numberOfRecipes.toString())
+  Log("Demarcation: " + demarcations[maxIndex])
+  Log("Array of demarcations: " + JSON.stringify(markers[maxIndex]))
+
+  if (numberOfRecipes > 0) {
+    // If recipe markers were found, call recipeParse to parse the article for recipes
+    articleResults = recipeParse(demarcations[maxIndex], $, paras, markers[maxIndex], articleObj);
   } else {
-    // If no 'endOfRecipe', no '1. ' and no servesMakes paragraphs, the article has no recipes
+    // If no markers were found, the article has no recipes
     Log("No recipe marker => no recipes")
     articleResults = {hasRecipes: false, recipes: [], hasFragmentedTitle: false}
   }
