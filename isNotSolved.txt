@@ -507,3 +507,100 @@ Seq: 346,  Article: Orpheus Ascending
 
     No recipe markers
 
+Seq: 356,  Article: Chow for Now
+    first recipe: Recipe Name not found
+
+    All ingredients unquantified, so ingredients never found, so parse walks back 
+    to the beginning of the article, so recipe name not found
+
+    Second and third recipes: first recipe name
+
+    Second and third recipe names are prepended to accumRecipeName, but the next
+    paragraph examines: 'Adapted from "Marcella says . . . "' is set to null by
+    function adjustParaText. Therefore accumRecipeName is reset. The parse continues
+    walking back and settles on the first recipe name.
+
+Seq: 369,  Article: The Gift; Seasoned Greetings
+    First recipe missed
+
+    No recipe marker
+
+    All recipes: Recipe name preceded by primary ingredient name
+
+Seq: 371,  Article: Laissez Fare
+    First recipe: Recipe Name not found
+
+    Recipe name paragraph truncated at 'Adapted', but recipe name name ends
+    with terminal punct, so skipped
+
+    Third recipe: an ingredient
+
+    Recipe name is followed by 'Serves 8', therefore isEndOfRecipe is true, and
+    parse backs up to the prior paragraph, an ingredient.
+
+Seq: 372,  Article: The Dish; Haute Potato
+    First recipe: <recipe name> 'serves 6'
+
+    Recipe name paragraph includes 'serves 6'
+
+Seq: 373,  Article: The Remix; One-Two Punch
+    First recipe: empty
+
+    Recipe name, ingredients and instructions all in one paragraph
+
+Seq: 374,  Article: Cookie Master
+    Both recipes: <recipe name> 'MAKES ABOUT ...'
+
+    function adjustParaText does not truncate at [SERVES|MAKES]
+
+
+Seq: 392,  Article: The Taste of Right Here
+    First recipe: ZZ
+
+    Recipe name <p> element has the form:
+    <p>
+    ZZ Packer is ...
+    <br>
+    <recipe name>
+    <br>
+    [serves 6]
+    <br>
+    ingredient
+    <br>
+    ingredient
+    <br>
+    ...
+    </p>
+
+    ZZ taken as recipe name
+
+Seq: 408,  Article: The Land Down Under
+    Second recipe: <last instruction step of first recipe> <recipe name>
+
+    Article <p> elements comprise multiple items (recipe name, ingredients,
+    instructions) separated by <br> elements. (Likewise for Seq: 392 above.)
+
+    In this case, the <p> element containing the second recipe name has the form:
+
+    <p>
+    <last instruction step of the first recipe>
+    <br>
+    <second recipe name>
+    <br>
+    [serves 4]
+    <br>
+    <ingredient>
+    <br>
+    ...
+    </p>
+
+    If <p> element contains <br> elements, look for <strong class="css-8qgvsz ebyp5n10">
+    elements to get recipe name?
+
+Seq: 419,  Article: A Tuscan Order
+    Third recipe: <recipe name> (
+
+    <p> element containing third recipe name has:
+    'Zuccotto (From the Four Seasons restaurant) ingredients'
+    adjustParaText trims at 'From', leaving '('
+

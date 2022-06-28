@@ -630,12 +630,20 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     if (length > 1) {
       // If the input array has more than one element ...
 
-      // ... split the last element into words
-      let lastAccum = accumRecipeName.slice(-1)[0].split(' ');
+      // Look at the last element
+      let lastAccumElement = accumRecipeName.slice(-1)[0]
 
-      if (lastAccum.length == 1) {
-        // if the last element consists of one word ...
-        Log("Single word last element of accumRecipeName dropped")
+      // Split the last element into words
+      let lastAccumWords = lastAccumElement.split(' ');
+
+      // Number of words in the last element
+      let lastAccumElementWords = lastAccumElement.split(' ').length;
+      
+
+      if (lastAccumElementWords == 1 || lastAccumElement.startsWith('serves')) {
+        // If the last element consists of one word or the last element starts
+        //  with 'serves' (11/07/2004 The Spice Route)
+        Log("Last element of accumRecipeName dropped")
 
         // ... return as the recipe name: the elements of the input array 
         //  excluding the last elemet
@@ -643,10 +651,10 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
         return [trimmedAccumRecipeName.join(' '), trimmedAccumRecipeName.length  > 1]
 
       } else {
-        // If the last element consists of more than one word, 
-        //  check if the last word of the last element is not capitalized
+        // If the last element consists of more than one word and doesn't start with
+        //  'serves', check if the last word of the last element is not capitalized
 
-        let lastWordFirstChar = lastAccum[lastAccum.length-1].substring(0, 1);
+        let lastWordFirstChar = lastAccumWords[lastAccumWords.length-1].substring(0, 1);
         let lastWordNotCaptialized = lastWordFirstChar.match(/[a-z]/) != null;
         if (lastWordNotCaptialized) {
           // If the last word is not capitalized, remove the last element of the
