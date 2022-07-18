@@ -604,3 +604,218 @@ Seq: 419,  Article: A Tuscan Order
     'Zuccotto (From the Four Seasons restaurant) ingredients'
     adjustParaText trims at 'From', leaving '('
 
+Seq: 429,  Article: STYLE & ENTERTAINING; Screen Gems
+    Second recipe: missed
+
+    No recipe marker, but
+    [makes n ...] and
+    [yields abour n ...]
+
+Seq: 430,  Article: SHAKEN AND STIRRED; Party Spirits
+    First recipe: empty
+
+    No recipe marker
+
+Seq: 434,  Article: FOOD; Black and Blue
+    First recipe: <recipe name> ( Donatella RESTAURANT)
+
+    <p> elements:
+
+    <recipe name>
+    '(Adapted from DavidBurke &'
+    'Donatella RESTAURANT)'
+    <ingerdient>
+    ...
+
+    
+    'Donatella RESTAURANT)' prepended
+    2nd <p> element truncated at 'Adapted', leaving '(', which is prepended
+    <recipe name> prepended
+
+Seq: 439,  Article: FOOD; Pride and Produce
+    Second recipe: <recipe name> '( Rebecca Courchesne)'
+
+    <p> elements:
+
+        <recipe name>
+        '(adapted from'
+        'Rebecca Courchesne)'
+        'For the topping:'
+        <ingredient>
+        ...
+
+    'For the topping:' skipped.
+    'Rebecca Courchesne)' prepended to accumRecipeName
+    '(adapted from' truncated at 'adapted', '(' prepended
+    <recipe name> prepended
+
+Seq: 441,  Article: EATING WELL; It's Better to Be Whole Than Refined
+    Article has 2 recipes, both of which were correctly identified. But 
+    function findRecipes returned 3 recipe markers of type endOfRecipe.  The
+    second instruction step of the second recipe was displayed as the 
+    third recipe.
+
+    The first instruction step of the 2nd recipe contains 'Makes about 3 cups.',
+    which was taken as an endOfRecipe marker.  'Yield: ...' at the end of the
+    the second recipe was taken as another endOfRecipe marker.
+
+Seq: 445,  Article: FOOD; Athens on 5,000 Calories a Day
+    All 3 recipes missed, other <p> elements displayed instead
+
+    Recipes embedded in lists of ingredient-like <p> elements
+
+Seq: 450,  Article: Food; Cold Fusion
+    First recipe: <recipe name> (
+
+    First recipe name <p> elment:
+    Tomato-Water Sorbet With Mint (from Bill Yosses, Josephs Restaurant)
+
+    Truncated at 'from', leaving '('
+
+Seq: 455,  Article: FOOD; The Fisher King
+    First recipe: 'Bass With Truffle', instead of 'Bass With Truffle Vinaigrette'
+
+    Fragmented title, second fragment, 'Vinaigrette', discarded because it's one word
+
+Seq: 460,  Article: FOOD; Italian for Beginners
+    First recipe" <recipe name> ( Recipes River Cafe'')
+
+    Following the recipe name <p> element:
+    <p>(Adapted from ''Italian Easy:</p>
+    <p>Recipes from London's</p>
+    <p>River Cafe'')</p>
+
+    Last <p> element prepended to accumRecipeName
+    penultimate <p> element truncated at 'from', 'Recipe" prepended to accumRecipeName
+    Preceding <p> element truncated at 'Adapted', '('  prepended to accumRecipeName
+    Recipe name <p> element prepended to accumRecipeName
+
+    Third recipe: same sequence of <p> elements as first recipe, but recipe name
+    starts with '15', so isNum:true and recipe name <p> element skipped.
+
+    Next <p> element examnined is endOfRecipe marker for 2nd recipe, which causes 
+    walk back to the 3rd recipe's recipe name <p> element
+
+Seq: 471,  Article: SHAKEN AND STIRRED; Fruity Fizz for Adults
+    First recipe: empty
+
+    No recipe marker
+
+Seq: 480,  Article: FOOD; Sexy Beast
+    First recipe: <recipe name> ( by author)
+
+    Fragmented title followed by fragmented '(Adapted from book | by author)'
+    'Adapted from book' phrase discarded, but '(' and 'by author)' were joined to
+    the recipe name.
+
+Seq: 482,  Article: No Bams, No Tricks, Just Food and a City
+    text <recipe name>
+
+    Last text paragraph before the recipe name paragraph ends with .'"
+    The terminal puncuation is not detected, and the text (truncated at "from the
+    Domincan") is prepended to accumRecipeName.
+
+    function adjustParaText should allow for doubled quoting characters.
+
+Seq: 485,  Article: FOOD; Chinese Characters
+    First recipe: <recipe name> ( text)
+
+    Fragmented title followed by fragmented '(Adapted from book | title)'
+    'Adapted from book' phrase discarded, but '(' and 'title)' were joined to
+    the recipe name.
+
+Seq: 490,  Article: SHAKEN AND STIRRED; Hammock in a Glass
+    Recipe: empty
+
+    No recipe marker
+
+Seq: 505,  Article: Mustard Isn't So Yellow Anymore
+    First recipe: empty
+
+    Article does not include recipe.  Recipe is in a separate page.
+
+Seq: 510,  Article: STYLE; Design Language
+    First recipe: 'Recipe Name not found'
+
+    Numbered list in article text
+
+    Second recipe: <recipe name> ( text)
+
+    Fragmented title followed by fragmented '(Adapted from book | title by author)'
+    'Adapted from book' phrase discarded, but '(' and 'title by author)' were joined to
+    the recipe name.
+
+Seq: 515,  Article: STYLE; Tonic Youth
+    First recipe: empty
+
+    No recipe marker
+
+Seq: 520,  Article: STYLE & ENTERTAINING; The World Is Their Oyster Bar
+    First recipe: text <recipe name>
+
+    Last text paragraph before the recipe name paragraph ends with ?'"
+    The terminal puncuation is not detected, and the text (truncated at "from breakfast 
+    to bouillabaisse") is prepended to accumRecipeName.
+
+    function adjustParaText should allow for doubled quoting characters.
+
+Seq: 539,  Article: It Happened One Saturday Night
+    First, third and forth recipes: text <recipe name>
+
+    Recipe name preceded by a paragraph containing an article-specific label that
+    doesn't end with termainal punctuation.
+
+Seq: 540,  Article: 20's Something
+    First recipe: Recipe Name not found
+
+    Recipe name, 1920's GINGER-ALE SALAD, is characterized as isNum: true
+    and so is considered an ingredient.  Function recipeParse walks backward to
+    the beginning of the article, so 'Recipe Name not found'.
+
+Seq: 554,  Article: SHAKEN AND STIRRED; Pan-Asian Experience
+    First recipe: empty
+
+    No recipe marker
+
+Seq: 576,  Article: FOOD; The Best Meal in Town
+    Third recipe: <recipe name> (
+
+    Following the recipe name <p> element:
+    <p>(Adapted from Citarella</p>
+    <p>Restaurant)</p>
+
+    'Restaurant)' prepended to accumRecipeName. '(Adapted from Citarella' truncated
+    at 'Adapted' and '(' prepended to accumRecipeName.  <recipe name> prepended to
+    accumRecipeName. 'Restaurant)' discarded because last accumRecipeName element is
+    single word. Function joinAccumRecipeName concatenated <recipe name> and '('
+
+Seq: 597,  Article: FOOD; Green Party
+    Third recipe: <recipe name> ( text)
+
+    Following the recipe name <p> element:
+    <p>(adapted from Donald Link,</p>
+    <p>Herbsaint Restaurant)</p>
+    
+    'Herbsaint Restaurant)' prepended to accumRecipeName. '(adapted from Donald Link,'
+    truncated at 'adapted' and '(' prepended to accumRecipeName.  <recipe name>
+    prepended to accumRecipeName. Function joinAccumRecipeName concatenated <recipe name> and '('
+    and 'Herbsaint Restaurant)
+
+Seq: 603,  Article: SHAKEN AND STIRRED; Apple With Attitude
+    First recipe: empty
+
+    No recipe marker
+
+Seq: 616,  Article: FOOD; Food ForThought
+    First recipe: <recipe name> ( text)
+
+    Following the recipe name <p> element:
+    <p>(Adapted from ''the Dean &</p>
+    <p>DeLuca Cookbook'')</p>
+
+    'DeLuca Cookbook''' prepended to accumRecipeName. '(Adapted from ''the Dean &'
+    truncated at 'Adapted' and '(' prepended to accumRecipeName.  <recipe name>
+    prepended to accumRecipeName. Function joinAccumRecipeName concatenated <recipe name> and '('
+    and 'DeLuca Cookbook'')
+
+

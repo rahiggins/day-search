@@ -213,7 +213,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
       "con","alla","an","le","see","also","met","by","from","el","ki","da","ba"]
 
     // Regular expresion to match attribution\time phrases that may follow a recipe name
-    const attributionRx = new RegExp('(total )*(time:)|(\\(.*adapted.*\\))|(adapted)|(from\\b)', 'i')
+    const attributionRx = new RegExp('(total )*(time:)|(\\(.*adapted.*\\))|(\\(?adapted)|(\\(?from\\b)', 'i')
 
     // Regular expression to match '[serves n]'
     const bracketedServesRx = new RegExp('\\[serves\\s\\d+\\]')
@@ -402,7 +402,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
             Log("Ingredients found, accumRecipeName reset");
 
             // Check the remaining paragraph text for the case-insensitive attribution
-            //  phrases: total time:', 'time:', 'adapted', or 'from'
+            //  phrases: total time:', 'time:', '[(]adapted', or '[(]from'
             //
             // If the remaining paragraph text does not contain these prhases,
             //  and the paragraph is not a "For the _:" paragraph (which will
@@ -706,6 +706,20 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     }
 
     // Walk back through <p> elements, examining each to identify the recipe name
+
+    // Occasionally,  parenthetical phrases are split between 2 <p> elements.
+    // Sometimes such a split parenthetical phrase is part of a recipe name
+    // (04-04-2004 Greek Revival). But more frequently, the split parenthetical 
+    // phrase is of the form:
+    // (Adapted ...
+    //  ...)
+    // When a <p> element with an unmatched parenthesis has the form ' ...)'
+    // look ahead to the preceeding <p> element to see if the element has an
+    // unmatched parenthesis with the form '(adapted...'.  If so, skip
+    // the ' ...)' element and set deleteUnmatchedParen to true to signal
+    // that the '(adapted ...' <p> element is to be skipped.
+    let deleteUnmatchedParen = false;
+
     for (let i = start; i > -1; i--) {
 
       // Starting in early 2022, a section with attribute role=complementary that
@@ -718,7 +732,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
       
       // Get text of each <p> element
       let paraText = $(paras[i]).text();
-      paraText = adjustParaText($(paras[i]).text());
+      paraText = adjustParaText(paraText);
       Log("ingredientFound: " + ingredientFound + " numFound: " + numFound)
       if (paraText == '') {
         Log("Empty paragraph text skipped - accumRecipeName reset")
@@ -744,6 +758,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
       Log(" isEndOfRecipe: " + p.isEndOfRecipe + ", colon: " + p.colon + ", allCAPS: " + p.allCAPS);
       Log(" skip: " + p.skip + ", adapted: " + p.adapted + ", punct: " + p.punct);
       Log(" time: " + p.time)
+      Log("numLParens: " + p.numLParens + ", numRParens: " + p.numRParens)
 
       // Skip paragraph based on its first word: 
       //  "Advertisement", "Serves", "Makes"
@@ -751,7 +766,40 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
         console.log("Skipping paragraph, first word: " + paraText.split(/\s+/g)[0])
         continue
       }
-      
+
+      // Check for paragraphs that have unmatched parentheses
+      if (p.numLParens != p.numRParens) {
+        console.log("Unmatched parenthesis paragraph")
+        if (p.numLParens == 0 && p.numRParens == 1) {
+          // If the unmatched parenthesis has the form ' ...)'
+          //  look ahead to the next (preceeding) paragraph to see
+          //  if it has an unmatched parenthesis of the form '(adapted ...'
+
+          let previousParaText = adjustParaText($(paras[i-1]).text());
+          prevCharacteristics = para(previousParaText);
+          if (prevCharacteristics.numLParens == 1 && prevCharacteristics.numRParens == 0) {
+            let parenIndex = previousParaText.indexOf('(');
+            if (previousParaText.substring(parenIndex+1, parenIndex+8).toLowerCase() == 'adapted') {
+              // If the next paragraph has '(adapted ...', set deleteUnmatchedParen
+              //  to indicate that the next paragraph should be skipped and skip
+              //  this paragraph.
+
+              deleteUnmatchedParen = true;
+              console.log("Unmatched parenthesis paragraph skipped,  " + p.numLParens + " " + p.numRParens);
+              continue
+            }
+          } else if (p.numLParens == 1 && p.numRParens == 0 && deleteUnmatchedParen) {
+            // If this paragraph has an unmatched parenthesis with the form
+            //  '( ...' and deleteUnmatchedParen is true, set deleteUnmatchedParen
+            //  to false and skip this paragraph.
+
+            deleteUnmatchedParen = false;
+            console.log("Unmatched parenthesis paragraph skipped,  " + p.numLParens + " " + p.numRParens);
+            continue
+          }
+        }
+      }
+
       // All uppercase is a recipe name
       if (p.allCAPS) {
         Log("allCAPS");
@@ -970,8 +1018,12 @@ function para(text) {
   //  punct: true if the paragraph ends with a period, comma, question mark,
   //          exclamation point, apostrophe, quote or right parenthesis.
   //  time: true if the paragraph includes "total time:" (case-insensitive)
+  //  numLParens: number of left parentheses
+  //  numRParens: number of right parentheses
 
-  let words = text.split(/\s+/g); // Split text by whitespace characters–
+  let words = text.split(/\s+/g); // Split text by whitespace characters
+  let numLParens = text.match(/\(/g); // Match left parentheses
+  let numRParens = text.match(/\)/g); // Match right parentheses
   
   return {
       words: words.length,
@@ -982,9 +1034,10 @@ function para(text) {
       allCAPS: (text === text.toUpperCase() && text != ''),
       skip: ['Advertisement', 'Serves', 'Makes'].includes(words[0]),
       adapted: words[0].search(/Adapted/i) > -1,
-      //punct: text.match(/[\.\,\?!\"\')]$/) != null,
       punct: text.match(/[\.\?!]$/) != null,
-      time: text.toLowerCase().includes('total time:')
+      time: text.toLowerCase().includes('total time:'),
+      numLParens: numLParens == null ? 0 : numLParens.length,
+      numRParens: numRParens == null ? 0 : numRParens.length
   }
   
 }

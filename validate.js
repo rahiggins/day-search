@@ -198,7 +198,7 @@ async function mainline() {
   console.log("Max seq: " + max.toString())
 
   // Set the database items to be retrieved from each database row
-  let cols = 'Name, hasArticleClass, hasFragmentedTitle, isNotSolved, discoveredRecipes, expectedRecipes, html'
+  let cols = 'DATE_FORMAT(date, "%m-%d-%Y") date, Name, hasArticleClass, hasFragmentedTitle, isNotSolved, discoveredRecipes, expectedRecipes, html'
 
   // Assume all results will be the same as the database's results
   let allSame = true;
@@ -215,6 +215,7 @@ async function mainline() {
 
     // dbResults is an object specifying the retrieved items from this row
     dbResult = row[0][0];
+    console.log("Formatted date: " + dbResult.date)
 
     // If the article was not previously solved ...
     if (bx(dbResult.isNotSolved)) {
@@ -274,8 +275,8 @@ async function mainline() {
         JSON.stringify(
           {
             seq: seq,
-            name: dbResult.Name
-          
+            name: dbResult.Name,
+            date: dbResult.date          
           })
         )
         articleResults['isNotSolved'] = false
@@ -459,6 +460,7 @@ async function mainline() {
         JSON.stringify(
           {
             seq: seq,
+            date: dbResult.date,
             name: dbResult.Name,
             dbClass: bx(dbResult.hasArticleClass),
             articleClass: articleObj.hasArticleClass,
@@ -469,7 +471,6 @@ async function mainline() {
             articleNotSolved: articleResults.isNotSolved,
             improved: improved,
             comparison: comparisonArray
-          
           }
         )
       )

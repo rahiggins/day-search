@@ -210,7 +210,7 @@ window.validate.onArticleDisplay( (arg) => {
 
     // Acquire the <p> element of 'difference' clone and set its text
     let diffParas = diff.querySelector('p')
-    diffParas.textContent = `Seq: ${argsObj.seq.toString()}, Article: ${argsObj.name}`;
+    diffParas.textContent = `Seq: ${argsObj.seq.toString()}, Date: ${argsObj.date}, Article: ${argsObj.name}`;
 
     // Acquire the <div> elements for the 'difference' clone
     let diffDivs = diff.querySelectorAll('div')
@@ -249,11 +249,11 @@ window.validate.onArticleSolved( (arg) => {
     
     let argsObj = JSON.parse(arg)
 
-    Log("Article solved = seq: " + argsObj.seq.toString() + ", Name: " + argsObj.name);
+    Log("Article solved = seq: " + argsObj.seq.toString() + ", Date: " + argsObj.date + ", Name: " + argsObj.name);
 
     let solved = solvedContent.cloneNode(true)
     let solvedPara = solved.querySelector('p')
-    solvedPara.textContent = `SOLVED seq: ${argsObj.seq.toString()}, Article: ${argsObj.name}`;
+    solvedPara.textContent = `SOLVED seq: ${argsObj.seq.toString()}, Date: ${argsObj.date}, Article: ${argsObj.name}`;
     container.append(solved)
 
 })
