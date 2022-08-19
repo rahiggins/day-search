@@ -213,7 +213,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
       "con","alla","an","le","see","also","met","by","from","el","ki","da","ba"]
 
     // Regular expresion to match attribution\time phrases that may follow a recipe name
-    const attributionRx = new RegExp('(total )*(time:)|(\\(.*adapted.*\\))|(\\(?adapted)|(\\(?from\\b)', 'i')
+    const attributionRx = new RegExp('(total )*(time:)|(\\((?:\\w*\\b\\s)?adapted.*\\))|(\\(?adapted)|(\\(?from\\b)', 'i')
 
     // Regular expression to match '[serves n]'
     const bracketedServesRx = new RegExp('\\[serves\\s\\d+\\]')
@@ -624,7 +624,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     // Also return a boolean indicating that returned recipe name is
     //  composed of fragments.
     console.log("joinAccumRecipeName entered with -")
-    console.log(accumRecipeName)
+    console.log(accumRecipeName);
 
     let length = accumRecipeName.length;
     if (length > 1) {
@@ -643,6 +643,7 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
       if (lastAccumElementWords == 1 || lastAccumElement.startsWith('serves')) {
         // If the last element consists of one word or the last element starts
         //  with 'serves' (11/07/2004 The Spice Route)
+        //Log("Last element of accumRecipeName dropped")
         Log("Last element of accumRecipeName dropped")
 
         // ... return as the recipe name: the elements of the input array 
@@ -956,6 +957,11 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
     Log("accumRecipeName: " + accumRecipeName)
     if (accumRecipeName.length != 0 && !articleObj.isRecipe) {
       Log("Recipe name set to accumRecipeName")
+      let fragmentedTitle;  // Absence of this causes 
+                            // "UnhandledPromiseRejectionWarning: 
+                            // ReferenceError: fragmentedTitle is not defined"
+                            // for 2003-02-19 Seq: 841,  Article: Margherita and Pissaladière
+                            // Why?
       [recipeName, fragmentedTitle] = joinAccumRecipeName(accumRecipeName);
       hasFragmentedTitle = hasFragmentedTitle || fragmentedTitle;
       console.log("hasFragmentedTitle: " + hasFragmentedTitle)
@@ -1023,7 +1029,7 @@ function para(text) {
 
   let words = text.split(/\s+/g); // Split text by whitespace characters
   let numLParens = text.match(/\(/g); // Match left parentheses
-  let numRParens = text.match(/\)/g); // Match right parentheses
+  let numRParens = text.match(/\)/g); // Match right parentheses  
   
   return {
       words: words.length,

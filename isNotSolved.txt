@@ -597,13 +597,6 @@ Seq: 408,  Article: The Land Down Under
     If <p> element contains <br> elements, look for <strong class="css-8qgvsz ebyp5n10">
     elements to get recipe name?
 
-Seq: 419,  Article: A Tuscan Order
-    Third recipe: <recipe name> (
-
-    <p> element containing third recipe name has:
-    'Zuccotto (From the Four Seasons restaurant) ingredients'
-    adjustParaText trims at 'From', leaving '('
-
 Seq: 429,  Article: STYLE & ENTERTAINING; Screen Gems
     Second recipe: missed
 
@@ -615,39 +608,6 @@ Seq: 430,  Article: SHAKEN AND STIRRED; Party Spirits
     First recipe: empty
 
     No recipe marker
-
-Seq: 434,  Article: FOOD; Black and Blue
-    First recipe: <recipe name> ( Donatella RESTAURANT)
-
-    <p> elements:
-
-    <recipe name>
-    '(Adapted from DavidBurke &'
-    'Donatella RESTAURANT)'
-    <ingerdient>
-    ...
-
-    
-    'Donatella RESTAURANT)' prepended
-    2nd <p> element truncated at 'Adapted', leaving '(', which is prepended
-    <recipe name> prepended
-
-Seq: 439,  Article: FOOD; Pride and Produce
-    Second recipe: <recipe name> '( Rebecca Courchesne)'
-
-    <p> elements:
-
-        <recipe name>
-        '(adapted from'
-        'Rebecca Courchesne)'
-        'For the topping:'
-        <ingredient>
-        ...
-
-    'For the topping:' skipped.
-    'Rebecca Courchesne)' prepended to accumRecipeName
-    '(adapted from' truncated at 'adapted', '(' prepended
-    <recipe name> prepended
 
 Seq: 441,  Article: EATING WELL; It's Better to Be Whole Than Refined
     Article has 2 recipes, both of which were correctly identified. But 
@@ -664,49 +624,15 @@ Seq: 445,  Article: FOOD; Athens on 5,000 Calories a Day
 
     Recipes embedded in lists of ingredient-like <p> elements
 
-Seq: 450,  Article: Food; Cold Fusion
-    First recipe: <recipe name> (
-
-    First recipe name <p> elment:
-    Tomato-Water Sorbet With Mint (from Bill Yosses, Josephs Restaurant)
-
-    Truncated at 'from', leaving '('
-
 Seq: 455,  Article: FOOD; The Fisher King
     First recipe: 'Bass With Truffle', instead of 'Bass With Truffle Vinaigrette'
 
     Fragmented title, second fragment, 'Vinaigrette', discarded because it's one word
 
-Seq: 460,  Article: FOOD; Italian for Beginners
-    First recipe" <recipe name> ( Recipes River Cafe'')
-
-    Following the recipe name <p> element:
-    <p>(Adapted from ''Italian Easy:</p>
-    <p>Recipes from London's</p>
-    <p>River Cafe'')</p>
-
-    Last <p> element prepended to accumRecipeName
-    penultimate <p> element truncated at 'from', 'Recipe" prepended to accumRecipeName
-    Preceding <p> element truncated at 'Adapted', '('  prepended to accumRecipeName
-    Recipe name <p> element prepended to accumRecipeName
-
-    Third recipe: same sequence of <p> elements as first recipe, but recipe name
-    starts with '15', so isNum:true and recipe name <p> element skipped.
-
-    Next <p> element examnined is endOfRecipe marker for 2nd recipe, which causes 
-    walk back to the 3rd recipe's recipe name <p> element
-
 Seq: 471,  Article: SHAKEN AND STIRRED; Fruity Fizz for Adults
     First recipe: empty
 
-    No recipe marker
-
-Seq: 480,  Article: FOOD; Sexy Beast
-    First recipe: <recipe name> ( by author)
-
-    Fragmented title followed by fragmented '(Adapted from book | by author)'
-    'Adapted from book' phrase discarded, but '(' and 'by author)' were joined to
-    the recipe name.
+    No recipe markers
 
 Seq: 482,  Article: No Bams, No Tricks, Just Food and a City
     text <recipe name>
@@ -716,13 +642,6 @@ Seq: 482,  Article: No Bams, No Tricks, Just Food and a City
     Domincan") is prepended to accumRecipeName.
 
     function adjustParaText should allow for doubled quoting characters.
-
-Seq: 485,  Article: FOOD; Chinese Characters
-    First recipe: <recipe name> ( text)
-
-    Fragmented title followed by fragmented '(Adapted from book | title)'
-    'Adapted from book' phrase discarded, but '(' and 'title)' were joined to
-    the recipe name.
 
 Seq: 490,  Article: SHAKEN AND STIRRED; Hammock in a Glass
     Recipe: empty
@@ -738,12 +657,6 @@ Seq: 510,  Article: STYLE; Design Language
     First recipe: 'Recipe Name not found'
 
     Numbered list in article text
-
-    Second recipe: <recipe name> ( text)
-
-    Fragmented title followed by fragmented '(Adapted from book | title by author)'
-    'Adapted from book' phrase discarded, but '(' and 'title by author)' were joined to
-    the recipe name.
 
 Seq: 515,  Article: STYLE; Tonic Youth
     First recipe: empty
@@ -777,45 +690,395 @@ Seq: 554,  Article: SHAKEN AND STIRRED; Pan-Asian Experience
 
     No recipe marker
 
-Seq: 576,  Article: FOOD; The Best Meal in Town
-    Third recipe: <recipe name> (
-
-    Following the recipe name <p> element:
-    <p>(Adapted from Citarella</p>
-    <p>Restaurant)</p>
-
-    'Restaurant)' prepended to accumRecipeName. '(Adapted from Citarella' truncated
-    at 'Adapted' and '(' prepended to accumRecipeName.  <recipe name> prepended to
-    accumRecipeName. 'Restaurant)' discarded because last accumRecipeName element is
-    single word. Function joinAccumRecipeName concatenated <recipe name> and '('
-
-Seq: 597,  Article: FOOD; Green Party
-    Third recipe: <recipe name> ( text)
-
-    Following the recipe name <p> element:
-    <p>(adapted from Donald Link,</p>
-    <p>Herbsaint Restaurant)</p>
-    
-    'Herbsaint Restaurant)' prepended to accumRecipeName. '(adapted from Donald Link,'
-    truncated at 'adapted' and '(' prepended to accumRecipeName.  <recipe name>
-    prepended to accumRecipeName. Function joinAccumRecipeName concatenated <recipe name> and '('
-    and 'Herbsaint Restaurant)
-
 Seq: 603,  Article: SHAKEN AND STIRRED; Apple With Attitude
+    First recipe: empty
+
+    No recipe markers
+
+Seq: 631,  Article: SHAKEN AND STIRRED; Some Enchanted Evening
     First recipe: empty
 
     No recipe marker
 
-Seq: 616,  Article: FOOD; Food ForThought
-    First recipe: <recipe name> ( text)
+Seq: 647,  2003-11-02 Article: TV Dinners
+    First recipe <recipe name> (cream of
 
-    Following the recipe name <p> element:
-    <p>(Adapted from ''the Dean &</p>
-    <p>DeLuca Cookbook'')</p>
+    CRÈME DE LA GRAND' TANTE
+    (cream of
+    cauliflower soup)
 
-    'DeLuca Cookbook''' prepended to accumRecipeName. '(Adapted from ''the Dean &'
-    truncated at 'Adapted' and '(' prepended to accumRecipeName.  <recipe name>
-    prepended to accumRecipeName. Function joinAccumRecipeName concatenated <recipe name> and '('
-    and 'DeLuca Cookbook'')
+    "Last word of last element is lowercase, last element deleted"
+
+Seq: 650,  2003-11-02 Article: Eating Their Words
+    First and second recipes: text <recipe name>
+
+    Recipe name preceded by a paragraph(s) containing an article-specific label that
+    doesn't end with termainal punctuation.
+
+Seq: 695,  2003-09-07 Article: EDITORS' CHOICE: FOOD; Bread Alert
+    First recipe: Recipe name truncated
+
+    The recipe name comprises 3 fragments.  The last fragment consists
+    of one word, and was therefore discarded by function joinAccumRecipeName.
+
+Seq: 704,  2003-08-24 Article: Food; Tip of the Iceberg
+    Third recipe: text
+
+    Demarcation is endOfRecipe.  The single instruction step is unnumbered
+    and contains quantified ingredients.  Function adjustParaText interprets 
+    it as an ingredients list preceded by a recipe name.  The lowercase word
+    check isolates the first, capitalized word of the paragraph, which is
+    prepended to accumRecipeName.  The next paragraph examined, the last
+    ingredient, ends with terminal puncutation, so the contents of 
+    accumRecipeName is taken as the recipe name.
+
+Seq: 713,  2003-08-10 Article: FOOTNOTES
+    First recipe: Recipe Name not found
+
+    Article starts with a non-recipe numbered list
+
+Seq: 814,  2003-04-02 Article: TEMPTATIONS; A Duet of Puddings, Playing Taste Notes That Tease
+    Second recipe: 'Place', first word of instructions paragraph
+
+    Demarcation is endOfRecipe. Instructions are in one unnumbered paragraph. 
+    Function adjustParaText checks paragraphs for ingredients without first
+    identifying instructions.  In this case, the instructions paragraph
+    contains 2 instances of '1/4 cup' and so was taken as ingredients.
+    The word preceding the first '1/4 cup' was prepended to accumRecipeName. 
+    
+    The next paragraph examined was an ingredient that ended with terminal
+    punctuation. The terminal punctuation ended the recipe name scan, and
+    the value in accumRecipeName was taken as the recipe name.
+
+Seq: 820,  2003-03-23 Article: FOOD; The Comeback Kid
+    First recipe: 'Burnt' Passion- Fruit Curd
+
+    Fragment title split between 'Passion-' and 'Fruit'
+    Function joinAccumRecipeName introduces a space between fragments when
+    joining them.  Is it possible to avoid introducing, or eliminate, a 
+    blank following a hyphen?
+
+Seq: 836,  2003-03-02 Article: SHAKEN AND STIRRED; New Before Its Time
+    First recipe: empty
+
+    No recipe marker
+
+Seq: 840,  2003-02-19 Article: The Dough
+    First and second recipes: Recipe Name not found
+
+    Two numbered lists, no recipe name
+    Use article title as recipe name?
+
+Seq: 841,  2003-02-19 Article: Margherita and Pissaladière
+    Second recipe: skipped
+
+    No recipe marker, <recipe name> is included in the last instruction step
+    paragraph of the first recipe
+
+Seq: 842,  2003-02-19 Article: Focaccia and Calzone
+    Recipes: empty
+
+    No recipe markers
+
+Seq: 855,  2003-02-02 Article: FOOD; Pump It Up
+    First recipe: <recipe name> ingredient
+
+    First 2 ingredients are unquantified. Both are prepended to accumRecipeName.
+    Function joinAccumRecipeName drops the last of the 2 ingredients because
+    its last word is lowercase.  It does not consider the first ingredient,
+    which is appended to the recipe name.
+
+Seq: 871,  2003-01-12 Article: FOOD; Lox, Stock and Barrels
+    First and second recipes: Last word of recipe names missing
+
+    Both recipes have fragmented titles, and the last fragment consists
+    of one word. Function joinAccumRecipeName drops the last fragment when
+    it that fragment is one word.
+
+Seq: 889,  2002-12-18 Article: In a Lebanese Valley, A Star Chef's Tour
+    First recipe: text <recipe name>
+
+    The text paragraph parsed after the recipe name paragraph ends with
+    'ERIC ASIMOV', which is not the author name.  Since there is no terminal
+    punctuation, the text paragraph is prepended to the recipe name.
+
+Seq: 901,  2002-12-08 Article: SHAKEN AND STIRRED; Corporate Greenery
+    First recipe: empty
+
+    No recipe marker
+
+Seq: 912,  2002-11-24 Article: FOOD; Parlez-Vous Turkey?
+    Second recipe: Recipe name truncated
+
+    The recipe name comprises 2 fragments.  The last fragment consists
+    of one word, and was therefore discarded by function joinAccumRecipeName. 
+
+Seq: 955,  2002-10-13 Article: FOOD; Turning Green
+    hasUnquantifiedIngredient incorrect set
+
+    First recipe ingredient: 'l large clove garlic, put through a press'
+    starts with a lowercase l instead of a numeral 1
+
+Seq: 962,  2002-10-06 Article: STYLE & ENTERTAINING; Whiskey À Go-Go
+    Third and seventh recipe: recipe name truncated
+
+    Recipe name fragmented: <Thai Beef | Marinade>,
+    <Cumin Tomato | Sauce>
+    but last fragment consists of one word, so function joinAccumRecipeName
+    drops it
+
+Seq: 971,  2002-09-29 Article: SHAKEN AND STIRRED; Oh, Behave
+    First recipe: <recipe name> text
+
+    The <p> element parsed before the recipe name <p> element contained the
+    text 'The house drink at Dos Caminos', which was prepended to accumRecipeName.
+    Function joinAccumRecipeName does not drop this text because the last word
+    of the last element is not lowercase.
+
+Seq: 974,  2002-09-22 Article: A Mann For All Seasons
+    First recipe: missed
+
+    No recipe marker
+
+Seq: 977,  2002-09-18 Article: Astonish the Crowd. Cook a Cucumber.
+    Third recipe: text
+
+    Demarcation is endOfRecipe.  The single instruction step is unnumbered
+    and contains quantified ingredients.  Function adjustParaText interprets 
+    it as an ingredients list preceded by a recipe name.  The only word
+    preceding first quantified ingredient is 'In', which is prepended to
+    accumRecipeName. The next paragraph examined, the last ingredient,
+    ends with terminal puncutation, so the content of accumRecipeName
+    is taken as the recipe name.
+    
+Seq: 982,  2002-09-15 Article: STYLE & ENTERTAINING; Beauty and the Feast
+    Fourth recipe: recipe name truncated
+
+    Recipe name fragmented: <Quick | Pickles> but last fragment consists
+    of one word, so function joinAccumRecipeName drops it    
+ 
+Seq: 1014,  2002-08-11 Article: FOOD; Lend Me an Ear
+    First recipe: <recipe name> '(Courtesy of Martine Garcia)'
+
+    'Courtesy of' should be treated like 'Adapted ...'
+
+Seq: 1045,  2002-07-07 Article: FOOD; Counting Sheep
+    Second recipe: false positive
+
+    Article contains 3 recipes, but 4 recipe markers found, erroneously.
+    
+    Penultimate instruction step of first recipe ends with '(Makes about ...)',
+    which is taken erroneously as an endOfRecipe marker by function para. 
+    This false recipe marker yields the correct first recipe name.
+
+    The actual recipe marker of the first recipe, 'Yield: ...' erroneously
+    yields the ultimate instruction step as the second recipe name.
+
+Seq: 1074,  2002-06-02 Article: SHAKEN AND STIRRED; Curing the Cosmo Blues With a Brand New
+    First recipe: empty
+
+    No recipe marker
+
+Seq: 1080,  2002-05-26 Article: GOOD COMPANY; A Birthday Party in a Trailer Park Is Completely Different in Aspen
+    First article: <recipe name> text
+
+    Paragraph parsed before the recipe name paragraph is:
+    'Recipe by Lisa Bolerjack'
+    rather than the usual 'Adapted from ...'.  It was prepended to accumRecipeName
+    and included in the recipe name.
+
+Seq: 1087,  2002-05-19 Article: FOOD; The Wild Ones
+    First recipe: Recipe Name not found
+
+    Article text has nunmbered list, so instr marker > endOfRecipe marker, but
+    no recipe name found for the first instr marker, which was just a numbered
+    list in the article text.
+
+Seq: 1095,  2002-05-12 Article: SHAKEN AND STIRRED; A Bolt of Lightning In an Everyday Glass
+    First recipe: 'In'
+
+    Demarcation is endOfRecipe. Instructions are in a single unnumbered
+    paragraph. Insruction paragraph contains numbered ingredients and functon
+    adjustParaText takes it as an ingredients list.  Text preceeding the first
+    numbered ingredient is trimmed by the lowercase word check to 'In'.
+
+Seq: 1119,  2002-04-10 Article: A Chef Invents a Lobster Dish, And Pots Start Boiling All Over
+    Fourth recipe: missed
+
+    Last recipe has no recipe marker and so was missed.
+
+Seq: 1135,  2002-03-24 Article: Two For The Road
+    Third and fourth recipes: Recipe names truncated at last word
+
+    Recipe names are fragmented, but the last fragment is one word, so
+    function joinAccumRecipeName discards them.
+
+    Don't discard last single word fragment if all fragments are uppercase?
+
+Seq: 1136,  2002-03-24 Article: The Good Books
+    Third recipe: Recipe name truncated at last word
+
+    Recipe names is fragmented, but the last fragment is one word, so
+    function joinAccumRecipeName discards it.
+
+    Fragments not uppercase
+
+Seq: 1158,  2002-03-06 Article: Toujours Alabama: A Chef Comes Home
+    First recipe name: text <recipe name>
+
+    Paragraph parsed after the recipe name paragraph ends with:
+    .' ''
+
+    Function adjustParaText does not detect terminal puncuation, so
+    paragraph prpended to accumRecipeName.
+
+Seq: 1185,  2002-02-06 Article: This Time, Chocolate Takes a Powder
+    Third recipe: <text fragment> (Heat)
+
+    Demarcation is 'end'. Instruction steps are in an unnumbered paragraph.
+    The instructions paragraph has enough numerics to be taken as an 
+    ingredients list preceded by text.  The lowercase word check isolates
+    the first, capitalized word of the paragraph, which is prepended to
+    accumRecipeName.  The next paragraph examined, the last ingredient,
+    ends with terminal puncutation, so the contents of accumRecipeName is
+    taken as the recipe name.
+
+Seq: 1215,  2001-12-26 Article: A Pot of Fire and Spice For Wall-to-Wall Guests
+    First recipe: text
+
+    <p> element containing recipe name was prepended to accumRecipeName.
+    Next <p> element parsed contained only the author name.  Function
+    adjustParaText removed the author name and returned an empty string.
+    Function recipeParse emptied accumRecipeName because function adjustParaText
+    returned an empty string.  Parse continues back until a <p> element
+    not ending in terminal punctuation was encountered, and that <p>
+    element was taken as the recipe name.
+
+Seq: 1221,  2001-12-19 Article: Introduction
+    First recipe: <article title>
+
+    Demarcation is instr.  Recipe structure is:
+
+    <text ending with termianal punctuation>
+    <recipe name>
+    <text ending with termianal punctuation>
+    'Recipe'
+    <ingredients>
+    <instructions>
+
+    Parse procedes through <ingredients> until 'Recipe', which is 
+    prepended to accumRecipeName. Next <p> element ends with terminal
+    punctuation, which terminates the parse. Function joinAccumRecipeName
+    returns 'Recipe' as the recipe name.  Because <recipe name> is 'recipe',
+    function recipeParse sets <recipe name> to the article title.
+
+Seq: 1231,  2001-12-09 Article: FOOD DIARY; The Foodie Network
+    First recipe: Carrot-and- Fennel Soup
+
+    Fragment title split between 'Carrot-and-' and 'Fennel Soup'
+    Function joinAccumRecipeName introduces a space between fragments when
+    joining them.  Is it possible to avoid introducing, or eliminate, a 
+    blank following a hyphen?
+
+Seq: 1236,  2001-12-02 Article: FOOD; Food, Not 'Tude
+    Second recipe: Dried-Fruit-and- Nut Bsteeyas
+
+    Fragment title split between 'Dried-Fruit-and-' and 'Nut Bsteeyas'
+    Function joinAccumRecipeName introduces a space between fragments when
+    joining them.  Is it possible to avoid introducing, or eliminate, a 
+    blank following a hyphen?
+
+Seq: 1244,  2001-11-18 Article: STYLE; Peanut Butter And Jammies
+    Article flagged with hasUnquantifiedIngredient
+
+    Second recipe ingredient '1 TV.' prepended to accumRecipeName because
+    allCAPS by function recipeParse. When next (preceding) ingredient is 
+    parsed, because accumRecipeName is not empty, hasUnquantifiedIngredient
+    is set to true.
+
+    Should be 'if (p.allCAPS && !p.isNum)'?
+
+Seq: 1257,  2001-11-04 Article: FASHION HOUSES; Haute Cuisine
+    Second recipe: 'Fusilli Primavera' instead of 'Fusilli Primavera With shrimp'
+
+    Fragmented recipe name: [ 'Fusilli Primavera', 'With shrimp' ]
+    Function joinAccumRecipeName discarded last fragment because
+    "Last word of last element is lowercase"
+
+Seq: 1261,  2001-11-04 Article: INSTANT COMFORT; Rising to the Occasion
+    Empty line displayed after each of the two recipes
+
+    Structure for each of two recipes:
+        <recipe name>
+        <ingredients>
+        <instructions>
+        <endOfRecipe>
+        for the icing:
+        <ingredients>
+        <instructions>
+
+    Demarcation is 'instr' (4) rather than 'end' (2).  For the 2nd and 4th
+    demarcations, the parse procedes through the ingredients, past the 
+    'for the icing:' paragraph to the 'Yield:' paragraph of the 1st and
+    3rd demarcations. Parse backs up to 'for the icing:' paragraph, which
+    is adjusted to an empty string that is taken as the 2nd and 4th recipe
+    name.
+
+Seq: 1265,  2001-11-04 Article: FASHION PLATES; The China Monologue
+    First recipe: <article name>
+
+    Recipe name paragraph is:
+    Roasted Peaches(Adapted from Kim Moss, Pecos Bar and Grill, Pecos, N.M.)
+
+    Function adjustParaText moves the terminal punctuation outside the parenthetical
+    phrase. Function recipeParse skips the recipe name paragraph because of
+    the terminal punctuation, and the parse reaches the beginning of the
+    article without finding a recipe name.
+
+Seq: 1294,  2001-09-26 Article: BY THE BOOK; An Old-World Explorer
+    Both recipes: Recipe name truncated because of 'FROM'
+
+    Function adjustParaText truncates paragraph at 'from'.
+
+    Not if 'from' is allCAPS?
+
+Seq: 1327,  2001-08-15 Article: Spooning Up a Cloud
+    Third recipe: <instruction step>
+
+    The article has 4 recipes, but the parse expected 5.  
+    
+    Demarcation is 'end'.  The first instruction step of the second
+    recipe contains '(Makes about 1 1/2 cups.)', which is taken as an
+    endOfRecipe marker.  This results in the subsequent instruction step
+    of the second recipe being taken as the (spurious) third recipe.
+
+Seq: 1334,  2001-08-05 Article: FOOD; Hold Fire
+    First recipe: Recipe Name not found
+
+    Article text includes a numbered list, which was parsed as a 
+    (spurious) recipe.
+
+Seq: 1337,  2001-08-01 Article: Keeping a Treasure Close to Home
+    Second recipe: <instruction step>
+
+    The article has 1 recipe, but the parse expected 2.
+
+    Demarcation is 'end'.  The first instruction step of the first (only)
+    recipe contains '(Makes 2 cups. …)', which is taken as an
+    endOfRecipe marker.  This results in the subsequent instruction step
+    of the first (only) recipe being taken as the (spurious) second recipe.
+
+Seq: 1361,  2001-07-01 Article: Food Diary; Dinner At 8
+    Second recipe: Recipe name truncated at parenthetical phrase
+
+    Text of recipe name paragrapgh:
+    Amuse-Gueules au Roquefort (Roquefort Cheese Balls) (adapted from ''Mastering the Art of French Cooking: Volume I'')
+
+    Instruction:
+    let ta = paraText.match(attributionRx);
+
+    matches at index 27: (Roquefort Cheese Balls)
+    instead of: (adapted from ''Mastering the Art of French Cooking: Volume I'')
+
 
 
