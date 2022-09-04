@@ -89,7 +89,7 @@ function getAuthor ($) {
   // Get author name from aritcle
   // Input: Cheerio query function based on article HTML
   // Output: Author name, string
-  return $('#story > header > div.css-xt80pu.eakwutd0 > div > div > div > p > span').text().replace('By ', '');
+  return $('#story > header > div.css-xt80pu.eakwutd0 > div > div > div > p').text().replace('By ', '');
 }
 
 function recipeParse(demarcation, $, paras, arr, articleObj) {
