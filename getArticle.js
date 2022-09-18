@@ -436,8 +436,8 @@ async function mainline() {
                 }
             }
 
-            // Output only rows whose 2nd date element contains 'article' or 'pairing'
-            return $(rowDataElements[1]).text().match(/article|pairing/) != null
+            // Output only rows whose 2nd element contains 'article' or 'pairing' or 'CWTT'
+            return $(rowDataElements[1]).text().match(/article|pairing|CWTT/) != null
 
         }).map( (i, row) => {
 
@@ -468,6 +468,35 @@ async function mainline() {
             // Create a Cheerio query function based to the article's HTML
             html = await dayPage.content();
             let $ = cheerio.load(html)
+
+            // If the article page contains no div elements, it's a CAPTCHA page.
+            //  Pause to allow the CAPTCHA to be manually solved
+            let divs = $('div')
+            if (divs.length == 0) {
+                Log("Captcha detected");
+                gotCaptcha = true;
+                getArticleWindow.setAlwaysOnTop(false);
+
+
+                // Tell the renderer process to display a 'captcha detected' message.
+                getArticleWindow.webContents.send('captcha-detected')
+
+                console.log("Waiting for navigation")
+                await dayPage.waitForNavigation()
+                console.log("Navigation ocurred")
+
+                getArticleWindow.setAlwaysOnTop(true);
+
+                // Tell the renderer process to remove the 'captcha detected' message.
+                getArticleWindow.webContents.send('captcha-solved')
+
+                // Create a Cheerio query function based to the article's HTML
+                html = await dayPage.content();
+                console.log("Length of article HTML: " + html.length.toString())
+                $ = cheerio.load(html)
+
+
+            }
 
             // Get the article title and note whether it contains ':' or ';'
             let header = $('header.e12qa4dv0');
@@ -533,6 +562,8 @@ async function mainline() {
 
             // Tell the renderer process to display the article and its associated
             //  information
+            //console.log("Displaying article, articleInfo:")
+            //console.log(JSON.stringify(articleInfo))
             getArticleWindow.webContents.send('article-display', JSON.stringify(articleInfo));
 
             // Wait for the renderer process to register a button click

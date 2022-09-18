@@ -44,6 +44,18 @@ In lib.js, function adjustParaText,
 
     But seq 156 was fixed by the uncapitalized word check, so this is probably obsolete.
 
+    - Seq: 1824,  2000-04-19 Article: A Springtime Rite Worth a Year's Wait
+
+      let punctChars = paraText.match(/([\.\?\!]{1})([\'\"\)]{1,3})$/); 
+
+      Try:
+      let punctChars = paraText.match(/([\.\?!]{1})('|"|\)|'"|' ")$/);
+
+index.js should incorporate elements of getArticle.js for each article:
+  - The <small> list of discovered recipes should be a textArea.
+  - The attributes checkboxes should be displayed
+  - The article should be stored in the articles table of the NYTarticles database
+
 -----------------------------------------------------------
 getArticles issues:
 
@@ -53,8 +65,12 @@ Duplicate rows:
   244, 245
   231, 232
 
+On 'No more years', clear window.
 
+-----------------------------------------------------------
+validate issues:
 
+<div class='loading'> should be replaced by a progress bar
 
 
 

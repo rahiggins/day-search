@@ -4,7 +4,8 @@
 
 // Code structure:
 
-// Define DOM elements used 
+// Define DOM elements used
+const mL = document.getElementById('msgs');     // messages list div
 const dateP = document.getElementById('dateP');
 const articleTitleP = document.getElementById('articleTitle');
 const expectedRecipesTA = document.getElementById('expectedRecipes');
@@ -201,4 +202,31 @@ window.getA.onArticleDisplay( (arg) => {
         hasUnquantifiedIngredientCB.checked = false;
     }
 
+})
+
+// On captcha detected, add a message
+window.getA.onCaptchaDetected( () => {
+    Log("captcha-detected received")
+
+    // Create a <p> element
+    let captchaP = document.createElement('p');
+
+    // Add 'Captcha detected!' to the <p> element
+    let txnd = document.createTextNode('Captcha detected!');
+    captchaP.appendChild(txnd);
+    captchaP.classList.add('text-error')
+
+    // Insert the <p> element at the beginning of the msgs div
+    mL.prepend(captchaP)
+
+})
+
+// On captcha solved, remove the 'Captcha detected' message
+window.getA.onCaptchaSolved( () => {
+    Log("captcha-solved received")
+
+    // Remove messages
+    while (mL.firstChild) {
+        mL.removeChild(mL.lastChild);
+    }
 })

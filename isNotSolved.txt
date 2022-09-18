@@ -1068,17 +1068,459 @@ Seq: 1337,  2001-08-01 Article: Keeping a Treasure Close to Home
     endOfRecipe marker.  This results in the subsequent instruction step
     of the first (only) recipe being taken as the (spurious) second recipe.
 
-Seq: 1361,  2001-07-01 Article: Food Diary; Dinner At 8
-    Second recipe: Recipe name truncated at parenthetical phrase
+Seq: 1381,  2001-06-03 Article: FOOD; Shut Up And Munch
+    Recipe Name not found
 
-    Text of recipe name paragrapgh:
-    Amuse-Gueules au Roquefort (Roquefort Cheese Balls) (adapted from ''Mastering the Art of French Cooking: Volume I'')
+    Article contains 4 recipes, each in one paragraph, which comprises a
+    recipe name and instructions naming ingredients and, in one case an
+    endOfRecipe marker.
 
-    Instruction:
-    let ta = paraText.match(attributionRx);
+Seq: 1397,  2001-05-13 Article: Food Diary; The First Supper
+    First recipe: 'Recipes' <recipe name>
 
-    matches at index 27: (Roquefort Cheese Balls)
-    instead of: (adapted from ''Mastering the Art of French Cooking: Volume I'')
+    A paragraph containing the word 'Recipes' precedes the paragrapgh
+    containing the first recipe name.
 
+    Usually, in this case, the word preceding the recipe name is 'RECIPES'
+    and is handled in the check for allCAPS.
+
+    The case-insensitive check for a paragraph containing only the word
+    'recipes' should occur in the function joinAccumRecipeName.
+
+Seq: 1407,  2001-04-29 Article: Feed your head
+    First recipe: <recipe name> text
+
+    For some unknown reason, a <p> element containing 'Yesterday's New York Times'
+    appears between the ingredients list and the recipe name.  It was 
+    prepended to accumRecipeName and included in the repored recipe name.
+
+Seq: 1409,  2001-04-29 Article: FOOTNOTES
+    First recipe: Recipe Name not found
+
+    Article text includes a numbered list, which is parsed as instruction 
+    steps, but there is no associated recipe name.
+
+Seq: 1410,  2001-04-29 Article: POPCORN; Starving Actors
+    First recipe: Should 'CARE TO DINE À LA BURTONS?' be part of the 
+    recipe name?
+
+    Second recipe: missed
+
+    No recipe markers
+
+Seq: 1419,  2001-04-18 Article: When a Sweet Nothing Becomes Really Something
+
+    Last recipe: Spurious
+    'HOW TO FOLD A NAPKIN INTO A JEWEL BOX' followed by a numbererd list
+
+Seq: 1426,  2001-04-11 Article: THE MINIMALIST; A Dish With a Hot Temper Attains a Milder Manner
+    First recipe: hasUnquantifiedIngredient missed
+
+    Demarcation is 'instr'.  First ingredient parsed:
+    '12 to 16 scallions, cut into 2-inch lengths.' 
+    was treated as an ingredient list because of multiple numerics, but was 
+    not recognized as an ingredient. The next ingredient parsed:
+    'Salt and freshly ground black pepper' did not set hasUnquantifiedIngredient
+    because the previous paragraph was not recognized as a numbered ingredient.
+
+Seq: 1446,  2001-03-18 Article: Pot Luck; Feed Thy Neighbor
+    First recipe: Recipe Name not found
+
+    Dearcation is 'instr'.
+    
+    Recipe name not recognized because it is embedded in a paragraph that 
+    starts with text and is followed by an ingredients list. 
+
+    Second recipe: text <recipe name> <ingredients list>
+
+    Recipe name embedded in a paragraph that starts with text and is
+    followed by an ingredients list. Parsed skips this, but later backs up
+    and takes this paragraph as the recipe name.
+
+Seq: 1466,  2001-02-28 Article: At Long Last, New York Is Ready for Ethiopia
+    First recipe: <text>
+
+    Recipe name prepended to accumRecipeName.  Next <p> element parsed contained
+    only the author's name.  Function adjustParaText removes the author's name
+    and returns an empty string, which resets accumRecipeName.  The parse
+    continues until a text paragraph is taken as the recipe name.
+
+Seq: 1474,  2001-02-18 Article: Food; Ostrich: The Movie
+    First recipe: text <recipe name>
+
+    The parse correctly prepends the recipe name to accumRecipeName, but the 
+    next 2 <p> elements parsed contain uppercase text, and that text is also 
+    prepended to accumRecipeName.
+
+Seq: 1489,  2001-02-04 Article: Food; Fish Out of Water
+    First recipe: Recipe Name not found
+
+    Recipe has no numbered ingredients, so ingredients not found, and parse
+    discards all paragraphs back to the beginning of the article.
+
+Seq: 1529,  2000-12-27 Article: THE CHEF; Seasoning for the Season: Caviar, Beyond the Spoon
+    Last recipe: <ingredient>
+
+    Penultimate ingredient is unquantified and so is prepended to accumRecipeName.  The
+    next <p> element parsed is a numbered ingredient that has terminal puntuation. Function
+    recipeParse takes the contents of accumRecipeName as the recipe name because of
+    "terminal punct & accumRecipeName not empty".
+
+    Condition this on isNum?
+
+Seq: 1535,  2000-12-20 Article: Print the Recipes
+    Second recipe: missed
+
+    Demarcation is 'instr'.  The second recipe has no numbered instruction steps.
+
+    Third, fourth and fifth recipes: <recipe name> unumbered ingredient
+
+    Function joinAccumRecipeName entered with an array of 3 elements:
+        <recipe name>
+        <unnumbered ingredient>
+        <unnumbered ingredient>
+
+    Last element is discarded because "Last word of last element is lowercase, last element deleted".
+    Repeat that test?
+
+Seq: 1538,  2000-12-20 Article: 'Stew' in a Crust
+    First recipe: <ingredient>
+
+    Recipe name should be the article name, but the <p> element preceding the ingredients
+    list is 'Recipe Makes ... .' 
+
+    Terminal punctuation ends the parse, accumRecipeName contains 2 unnumbered ingredients,
+    function joinAccumRecipeName discards the second ingredient because of lowerecase, and
+    the first ingredient is taken as the recipe name.
+
+Seq: 1542,  2000-12-17 Article: Food; Plaen and Fancy
+    First recipe: <recipe name><For the ...><ingredients>
+
+    The recipe name paragraph also contains a 'For the ...:' phrase and an ingredients
+    list. The previous paragraph parsed also contained a 'For the ...:' phrase and an 
+    ingredients list.  Because ingredients were found in the previous paragraph, the 
+    recipe name paragraph was not checked for ingredients or  'For the ...:' phrases.  The 
+    whole paragraph was taken as the recipe name.
+
+Seq: 1549,  2000-12-10 Article: Food; Grecian Formula
+    First recipe: <recipe name> text
+
+    Between  the recipe name paragraph and the ingredients list are 2 allCAPS paragraphs
+    that were prepended to accumRecipeName and included in the recipe name.
+
+    Second recipe: recipe name truncated
+
+    Recipe name 'Veal-and-Vegetable Stew From Corfu' was truncated at 'From' by
+    function adjustParaText.
+
+Seq: 1573,  2000-11-19 Article: Food; Quirky Turkey
+    First recipe: Recipe Name not found
+
+    Article text contains a numbered list, which is taken as a (spurious) recipe.
+
+    Second recipe: text <recipe name>
+
+    Three paragraphs, parsed after the recipe name paragraph, do not end with terminal
+    punctuation, and are prepended to accumRecipeName.
+
+Seq: 1575,  2000-11-15 Article: Print the Recipes
+    Third recipe: Not really a recipe
+
+Seq: 1594,  2000-11-05 Article: Potables; Olive or Twist
+    Seventh recipe: text
+
+    Demarcation is 'end'.  Instructions are in one unnumbered paragraph, and instructions 
+    inlude numbered ingredients.  That paragraph was taken as an ingredients list, and
+    the text preceding the the first numbered ingredient was prepended to accumRecipeName.
+    The next paragraph parsed was an ingredient that ended with terminal punctuation.
+    The terminal punct ended the parse, and the contents of accumRecipeName was taken as
+    the recipe name.
+
+Seq: 1596,  2000-11-05 Article: Maguy by the Sea
+    First recipe: Recipe Name not found
+
+    Demarcation is 'end'. The article text preceding the actual first includes the phrase
+    "How She Serves: ", which was taken as an endOfRecipe marker (via endOfRecipeRX).  
+    This spurious marker had no associated recipe name
+
+Seq: 1599,  2000-11-05 Article: Footnotes
+    First recipe: Recipe Name not found
+
+    Article text comprises a numbered list. Since the demarcation is 'instr', the article text
+    is parsed, and no recipe name was found.
+
+Seq: 1626,  2000-10-11 Article: Tomato Coulis and Tomato Mint Soup
+    Second recipe: <recipe name> unumbered ingredient
+
+    Function joinAccumRecipeName entered with an array of 3 elements:
+        <recipe name>
+        <unnumbered ingredient>
+        <unnumbered ingredient>
+
+    Last element is discarded because "Last word of last element is lowercase, last element deleted".
+    Repeat that test?
+
+Seq: 1627,  2000-10-11 Article: Tomato Concasse and Tomato Parsley Salad
+    Second recipe: <article title>
+
+    CWTT article. Demarcation is 'instr'. Two recipes.  Both prefiaced with 'Recipe'.
+    First recipe has no <recipe name> paragraph so it properly takes article title as its
+    recipe name.
+
+    Second recipe structure:
+
+    <recipe name>
+    <text><terminal punctuation>
+    'Recipe'
+    <instruction step>
+
+    'Recipe' prepended to accumRecipeName.  Paragraph with terminal punt ends the parse
+    and 'Recipe' as the recipe name causes a walk back to the article title.
+
+Seq: 1647,  2000-09-24 Article: Food; A Taste for Seduction
+    First recipe: Recipe Name not found
+
+    Article contains a numbered list in its introductory text, which is
+    interpreted as a recipe.
+
+Seq: 1713,  2000-07-30 Article: Food; An Herbal Life
+    First recipe: text <recipe name>
+
+    Recipe name is prepended to accumRecipeName.  The next paragraph parsed does not end
+    with terminal puncutation.  This paragraph is truncated "adapted from", and the remaining
+    text is prepended to accumRecipeName. The next paragraph ends with terminal puncuation,
+    ending the parse, and the contents of accumRecipeName is taken as the recipe name.
+
+Seq: 1720,  2000-07-19 Article: Print the Recipes
+    First recipe: <recipe name> text
+    Second recipe: spurious
+
+    Article structure:
+        <recipe name>
+        'The Fish'
+        <ingredients list>
+        <instruction steps>
+
+        'The Dressing'
+        <ingredients list>
+        <instruction steps>
+
+        'Carving and Serving Instructions'
+        <numbered list>
+
+    If the phrases 'The Fish' and 'The Dressing' were proceeded by 'For the', only the
+    <recipe name> would have been reported.
+
+    Third recipe: spurious
+
+        Numbered list follows the recipe.
+
+Seq: 1721,  2000-07-19 Article: Lemon Olive Oil Dressing
+    First recipe: text
+
+    Article structure:
+
+        text with terminal punctuation
+        'Recipe: The Dressing'
+        <unnumbered ingredient>
+        <ingredients list>
+
+    Demarcation is 'instr'. Parse prepends <unnumbered ingredient> to accumRecipeName.
+    Parse removes 'Recipe:' from the next paragraph and prepends 'The Dressing' to
+    accumRecipeName. The next paragraph parsed ends with terminal punctuation, and because
+    accumRecipeName is not empty, the parse ends. The second element of accumRecipeName
+    is discard because its last word is lowercase, and the first element (The Dressing) is 
+    taken as the recipe name, instead of the article title, which is the actual recipe name.
+
+Seq: 1723,  2000-07-19 Article: The Stuffed Version
+    Second recipe: spurious
+
+    Demarcation is 'instr'. Numbered list follows the single recipe.
+
+Seq: 1736,  2000-07-09 Article: Food; Letting Off Steam
+    First recipe: Recipe Name not found
+
+    Demarcation is 'instr'. Article text includes a numbered list, which is taken as a recipe.
+
+Seq: 1755,  2000-06-21 Article: Print the Recipes
+    First recipe: <recipe name> text
+    Second recipe: spurious
+
+    Article structure:
+        <recipe name>
+        'The Fish'
+        <ingredients list>
+        <instruction steps>
+
+        'The Dressing'
+        <ingredients list>
+        <instruction steps>
+
+        'Carving and Serving Instructions'
+        <numbered list>
+
+    If the phrases 'The Fish' and 'The Dressing' were proceeded by 'For the', only the
+    <recipe name> would have been reported.
+
+    Third recipe: spurious
+
+        Numbered list follows the recipe.
+
+Seq: 1756,  2000-06-21 Article: Lemon Olive Oil Dressing
+    First recipe: text
+
+    Article structure:
+
+        text with terminal punctuation
+        'Recipe: The Dressing'
+        <unnumbered ingredient>
+        <ingredients list>
+
+    Demarcation is 'instr'. Parse prepends <unnumbered ingredient> to accumRecipeName.
+    Parse removes 'Recipe:' from the next paragraph and prepends 'The Dressing' to
+    accumRecipeName. The next paragraph parsed ends with terminal punctuation, and because
+    accumRecipeName is not empty, the parse ends. The second element of accumRecipeName
+    is discard because its last word is lowercase, and the first element (The Dressing) is 
+    taken as the recipe name, instead of the article title, which is the actual recipe name.
+
+Seq: 1773,  2000-06-07 Article: Bartender, Bring Me Provence
+    Fourth recipe: spurious
+
+    Article contains 4 recipes, but 5 recipe markers found, erroneously.
+    
+    Penultimate instruction step of third recipe ends with '(Makes about ...)',
+    which is taken erroneously as an endOfRecipe marker by function para. 
+    This false recipe marker yields the correct third recipe name.
+
+    The actual recipe marker of the third recipe, 'Yield: ...' erroneously
+    yields the ultimate instruction step as the spurious fourth recipe name.
+
+Seq: 1799,  2000-05-10 Article: Vinaigrette Foundations
+    Third recipe: <ingredient>
+
+    A paragraph of text, ending with terminal punctuation, appears between the ingradients
+    list and the recipe name.  The first ingredient is unnumbered and so is prepended
+    to accumRecipeName.  The text paragraph ends the parse, and the first ingredient is
+    taken as the recipe name.
+
+Seq: 1812,  2000-04-30 Article: Food; Rules of The Game
+    Last (fifth) recipe: missing
+
+    Demarcation is 'instr'. Last recipe has no recipe markers.
+
+Seq: 1824,  2000-04-19 Article: A Springtime Rite Worth a Year's Wait
+    First recipe: text <recipe name>
+
+    The recipe name was prepended to accumRecipeName.  The next paragraph parsed ended
+    with `.' "`
+
+    Because there is a space between the apostrophe and the quote, function adjustParaText
+    does not expose the terminal punctuation, and the paragraph is prepended to accumRecipeName.
+
+    The next paragraph parsed ends with terminal punctuation, ending the parse. Both elements
+    in accumRecipeName are taken as the recipe name.
+
+Seq: 1843,  2000-04-05 Article: Marinade
+    First recipe: text
+
+    The paragraph preceding the first ingredient has 'Recipe: The Marinade'. Function
+    recipeParse strips 'Recipe:' and takes 'The Marinade' as the recipe title.  But the 
+    article title 'Marinade' is preferred.
+
+Seq: 1844,  2000-04-05 Article: Duck Breast
+    First recipe: text
+
+    The paragraph preceding the first ingredient has 'Recipe: Cooking the Duck Breast'. 
+    Function recipeParse strips 'Recipe:' and takes 'The Marinade' as the recipe title.  
+    But the article title 'Duck Breast' is preferred.
+
+Seq: 1863,  2000-03-15 Article: THE MINIMALIST; A Surprise Candidate For Roasting
+    First recipe: hasUnquantifiedIngredient missed
+
+    First ingredient parsed (last ingredient) not recognized as a numbered ingredient:
+    '1 3- to 4-pound boned lamb shoulder, trimmed of surface fat.'
+
+        Ingredients match result: 1 3- to ,4-pound 
+        Para contains ingredients
+        Ingredient match: 4-pound  includes UOM: pound
+        Number of ingredient matches: 2
+        Number of matches including a measure: 1
+        Half or so: 2
+
+Seq: 1866,  2000-03-15 Article: THE CHEF; Minute Risotto (Almost)
+    Third recipe: spurious
+
+    Demarcation is 'end'. The article has 2 recipes, but the second recipe's first
+    instruction step end with 'Makes about 2 cups.'. This is taken as an endOfRecipe
+    marker (spurious).
+
+    The parse starting at the spurious endOfRecipe marker finds the second recipe name.
+    The parse starting at the actual endOfRecipe marker of the second recipe (Yield: 3 to 4 servings...)
+    reaches the spurious endOfRecipe marker and backs up to the second recipe's second
+    instruction step, which is taken as the (spurious) third recipe name.
+
+Seq: 1878,  2000-03-01 Article: Gruyère Omelet
+    First recipe: text
+
+    Demarcation is 'servesMakes'.  First paragraph parsed is 'The Recipe', which is prepended
+    to accumRecipeName. The next paragraph parsed ends with terminal punctuation, terminating
+    the parse.  'The Recipe' is taken as the recipe name, but the actual recipe name is the
+    article title.
+
+    Do not prepended 'The Recipe'?
+
+Seq: 1879,  2000-03-01 Article: Filled Omelet
+    First recipe: text
+
+    Demarcation is 'servesMakes'.  First paragraph parsed is 'The Recipe', which is prepended
+    to accumRecipeName. The next paragraph parsed ends with terminal punctuation, terminating
+    the parse.  'The Recipe' is taken as the recipe name, but the actual recipe name is the
+    article title.
+
+    Do not prepended 'The Recipe'?
+
+Seq: 1963,  1999-04-11 Article: Food; Greek Fire
+    Last recipe: Recipe name incomplete
+
+    Function joinAccumRecipeName entered with -
+        [ 'Psari Mayoneza', '(Fish With', 'Mayonnaise)' ]
+    Last element of accumRecipeName dropped because lastAccumElementWords == 1
+
+Seq: 1966,  1999-04-07 Article: THE CHEF
+    hasUnquantifiedIngredient true, erroneously
+
+    First recipe: 'For the _' phrases in the ingredients list lack a terminal colon.  They
+    are therefore taken as unnumbered ingredients.
+
+Seq: 1990,  1999-03-17 Article: THE MINIMALIST; The Tortilla As Omelet
+    First recipe: hasUnquantifiedIngredient missed
+
+    Demarcation is 'instr'.  First ingredient parsed ends with terminal punctuation and
+    so is skipped.  The next ingredient is unnumbered, but because ingredients were not
+    previously found, the unnumbered ingredient is not prepended to joinAccumRecipeName,
+    and therefore in can't be recognized as an unnumbered ingredient.
+
+Seq: 2020,  1999-02-17 Article: Magic Potions That Stir Food To Life
+    First recipe: missed
+
+    Demarcation is 'instr'.  The first recipe's instruction steps did not include A
+    space after the instr marker, and so was not recognized as an instruction step.
+
+    Second and third reported recipes: spurious
+
+    Embedded in the recipes are two numbered lists, which are taken as recipes.
+
+Seq: 2037,  1999-01-31 Article: FOOD; Love Me Tender
+    First recipe: missed
+
+    No recipe marker
+
+Seq: 2056,  1999-01-13 Article: Where Indulgence Grows on Trees
+    First recipe: hasUnquantifiedIngredient missed
+
+    Demarcation is 'instr'.  First ingredient parsed ends with terminal punctuation and
+    so is skipped.  The next ingredient is unnumbered, but because ingredients were not
+    previously found, the unnumbered ingredient is not prepended to joinAccumRecipeName,
+    and therefore in can't be recognized as an unnumbered ingredient.
 
 
