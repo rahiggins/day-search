@@ -72,3 +72,5 @@ validate issues:
 
 <div class='loading'> should be replaced by a progress bar
 
+---
+getA
