@@ -1,6 +1,6 @@
 {
   "name": "day-search",
-  "version": "1.1.0",
+  "version": "1.3.1",
   "description": "Search a day's Food or Magazine section articles for recipes, puppeteer in main process version.",
   "main": "index.js",
   "scripts": {

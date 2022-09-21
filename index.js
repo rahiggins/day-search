@@ -25,40 +25,54 @@
 //  and use that instance of Chrome to log in to nytimes.com.  Then start this
 //  application.
 
-// TESTCASE
+// The following are replaced:
 
-// The application provides an option to write the HTML of each article examined
-//  to ~/Library/Application Support/day-search/testcase/mm-dd-yyyy and an option
-//  to process one of those HTML files as described above, instead of processing 
-//  all the day's articles.
+      // TESTCASE
 
-// The functions that parse an article to identify its title and to identify 
-//  recipes reside in a separate file -- lib.js.  When the option to read an
-//  HTML file is taken, the application checks for the existence of a file
-//  named testcase-lib.js.  If it exists, fuctions in that file are used, instead
-//  of the functions in lib.js.
+      // The application provides an option to write the HTML of each article examined
+      //  to ~/Library/Application Support/day-search/testcase/mm-dd-yyyy and an option
+      //  to process one of those HTML files as described above, instead of processing 
+      //  all the day's articles.
 
-// When the application fails to parse an article correctly, the day search can
-//  be repeated with the write-to-testcase option.  Then the lib.js file can
-//  duplicated as testcase-lib.js, and testcase-lib.js can be modified to 
-//  attempt to parse the article correctly.  If the attempt is successful,
-//  lib.js can be replaced by testcase-lib.js.
+      // The functions that parse an article to identify its title and to identify 
+      //  recipes reside in a separate file -- lib.js.  When the option to read an
+      //  HTML file is taken, the application checks for the existence of a file
+      //  named testcase-lib.js.  If it exists, fuctions in that file are used, instead
+      //  of the functions in lib.js.
 
-// VALIDATE
+      // When the application fails to parse an article correctly, the day search can
+      //  be repeated with the write-to-testcase option.  Then the lib.js file can
+      //  duplicated as testcase-lib.js, and testcase-lib.js can be modified to 
+      //  attempt to parse the article correctly.  If the attempt is successful,
+      //  lib.js can be replaced by testcase-lib.js.
 
-// The application provides an option to examine a set of reference articles
-//  for recipes and to compare the recipes found to the recipes known to 
-//  be in the article.  For articles where there is a discrepancy between the 
-//  recipes found and the recipies known to exist, both sets of recipes are 
-//  displayed.
+      // VALIDATE
 
-// The reference articles are in 
-//  ~/Library/Application Support/day-search/testcase/solvedTestcases
+      // The application provides an option to examine a set of reference articles
+      //  for recipes and to compare the recipes found to the recipes known to 
+      //  be in the article.  For articles where there is a discrepancy between the 
+      //  recipes found and the recipies known to exist, both sets of recipes are 
+      //  displayed.
 
-// The validate option uses testcase-lib.js, if it exists.
+      // The reference articles are in 
+      //  ~/Library/Application Support/day-search/testcase/solvedTestcases
+
+      // The validate option uses testcase-lib.js, if it exists.
+
+// INCORPORATE getARTICLE PROCESSING
+
+// This version replaces the TESTCASE and VALIDATE version updates with
+//  processing from the getArticle application.  To wit:
+//
+//   - The option to process a /testcase instance is replaced by 
+//      the replay application.
+//
+//   - The option to validate /testcase instances is replaced by
+//      the validate application. 
 
 // Version single-search 0.1
 // Version validate 0.2
+// Version incorporate getArticle processing 0.3
 
 // Code structure:
 //

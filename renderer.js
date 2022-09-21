@@ -11,7 +11,6 @@
 //    function setDefaults
 //    function addMsg
 //    function remvAllMsg
-//    function removeOr
 //    fucntion showReset
 // 
 //   window.electron.onDisplaySpinner
@@ -37,7 +36,6 @@
 //   window.electron.onEnableSearchButtons
 //   window.electron.onCaptchaDetected
 //     button EventListener for click
-//   window.electron.onValidateSuccessful
 //        
 //   function Mainline
 //    dateInput Eventlistener for input
@@ -45,18 +43,10 @@
 //    startButton EventListener for click
 //    dateInput EventListener for change
 //    function processDate
-//    fileInput EventListener for change
-//    validateButton EventListener for click
 
 let dateInput = document.getElementById('dateSpec');
-let fileInput = document.getElementById('fileSpec');
 let startButton = document.getElementById('startButton');
-let writeSwitch = document.getElementById('writeSwitch');
-let orP = document.getElementById('orP');
 let dateForm = document.getElementById('dateForm');
-let fileForm = document.getElementById('fileForm');
-let validateForm = document.getElementById('validateForm');
-let validateButton = document.getElementById('validateButton');
 const resetButton = document.getElementById("resetButton")
 const mL = document.getElementById('msgs');     // messages list div
 const aL = document.getElementById('aList');    // articles list div
@@ -703,12 +693,6 @@ window.electron.onCaptchaDetected( () => {
 
 })
 
-// Display "all as expected" message
-window.electron.onValidateSuccessful( () => {
-    let msg = "All results were as expected"
-    addMsg(mL, msg, { color: "text-success"})
-})
-
 // Mainline function
 async function Mainline() {
     Log("Entered Mainline");
@@ -780,10 +764,7 @@ async function Mainline() {
         startButton.disabled = true;
         dateInput.disabled = true;
 
-        // Remove testcase file input
-        fileForm.remove();
-        validateForm.remove()
-        removeOr();
+        // Show reset button
         showReset();
 
         // Remove any previous messages
@@ -799,42 +780,11 @@ async function Mainline() {
 
         // Get the selected date (yyyy-mm-dd)
         let dateToSearch = dateInput.value;
-        let switchValue = writeSwitch.checked;
 
         // Send the date to process and the testcase switch value to the main process
-        window.electron.send('process-date', [dateToSearch, switchValue])
+        window.electron.send('process-date', [dateToSearch, false])
 
     }
-
-    // When a testcase file is selected, remove the date input elments and
-    //  tell the index.js to process the testcase file
-    fileInput.addEventListener("change", () => {
-        dateForm.remove();
-        validateForm.remove()
-        removeOr();
-        showReset();
-        let hrefFile = fileInput.files[0].path.replace("html", "txt")
-        window.electron.send('process-file', 
-            [fileInput.files[0].path,
-             hrefFile
-            ]
-        )
-    }, false);
-
-    // When the Validate button is clicked, remove the date input and the
-    //  testcase file input, then tell the index.js process to validate
-    //  the solvedTestcases articles
-    validateButton.addEventListener('click', () => {
-        Log("Validate button clicked")
-        dateForm.remove();
-        fileForm.remove();
-        validateForm.remove()
-        removeOr();
-        showReset();
-        window.electron.send('process-validate')
-    }, false);
-
-
 
 }
 
