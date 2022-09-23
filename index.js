@@ -103,9 +103,6 @@
 //      mainWindow.on('closed')
 //    ipcMain.handle('getLastDate')
 //    ipcMain.on('process-date')
-//    ipcMain.on('process-file')
-//      imports function findRecipes from testcase-lib.js or lib.js
-//      imports function adjustTitle from testcase-lib.js or lib.js
 //    ipcMain.on('stop-NYTCooking')
 //    ipcMain.on('close-NYTCooking')
 //    ipcMain.on('author-search')
@@ -1378,97 +1375,6 @@ async function mainline () {
     // Navigate to search results for selected date and date's section (Food or Magazine)
     await processDate(dateToSearch)
   });
-
-  // Handle testcase file selection in the mainWindow process
-  ipcMain.on('process-file', async (event, arg) => {
-    // Input: [HTML filename, href filename]
-    console.log("process-file entered")
-
-    htmlToParseFile = arg[0];
-    hrefFile = arg[1];
-    Log("HTML to parse file: " + htmlToParseFile)
-    Log("href file: " + hrefFile)
-
-    // Process input files, ignore recipes
-    let [$, articleObj] = prepArticle(htmlToParseFile, hrefFile)
-
-    // Call findRecipes, which parses the article's HTML to identify recipes and
-    //  display those recipes.
-    await findRecipes($, articleObj, mainWindow);
-    mainWindow.webContents.send('enable-searchButtons')
-
-  });
-
-  // Handle click on the Validate button. Parse testcase articles for recipes and compare
-  //  those to the expected recipes.
-  // The %appPath%/testcase/solvedTestcases directory contains testcases that should be correctly
-  //   parsed for recipes.  
-  // Each testcase is a directory, named mm-dd-yyy, that contains two
-  //  files: <article name>.html and <article name>.txt.
-  // The html file is an article to be parsed for recipes.
-  // The txt file is a string representing an object with keys url and recipes.
-  // The url key specifies the url of the article and is used in the display of the article.
-  // The recipes key specifies an array of recipes expected to be found in the article.
-  // The process-validate routine parses each testcase for recipes and compares the recipes 
-  //  found to the recipes expected.  Testcase where the recipes found differ from the recipes
-  //  expected are displayed.
-  ipcMain.on('process-validate', async () => {
-    console.log("Process validate received")
-
-    // Keep track of articles displayed. None means all testcases were valid.
-    let articlesDisplayed = 0;
-    
-    // Get entries in %appPath%/testcase/solvedTestcases
-    let solvedTestcasesDates = fs.readdirSync(testcase + "/solvedTestcases");
-
-    // For each entry ...
-    for (solvedTestcasesDate of solvedTestcasesDates) {
-      // ... that matches mm-dd-yyy ...
-      if (solvedTestcasesDate.match(/\d{2}-\d{2}-\d{4}/)) {
-
-        // ... get its files
-        let solvedTestcaseDatePath = testcase + "/solvedTestcases" + "/" + solvedTestcasesDate;
-        let solvedTestcaseFiles = fs.readdirSync(solvedTestcaseDatePath)
-
-        for (solvedTestcaseFile of solvedTestcaseFiles) {
-          if (solvedTestcaseFile.endsWith(".html")) {
-            // For the html file ...
-
-            // Identify the associated txt file
-            let solvedTestcaseTxtFile = solvedTestcaseFile.match(/(.*)\.html$/)[1] + '.txt'
-
-            // Identify the paths for both files
-            let htmlToParseFile = solvedTestcaseDatePath + "/" + solvedTestcaseFile
-            let txtFile = solvedTestcaseDatePath + "/" + solvedTestcaseTxtFile
-            console.log("HTML file: " + htmlToParseFile)
-            console.log("Txt file: " + txtFile)
-
-            // Process the two input files, returning a Cheerio query function, an article object and              
-            //  and array of the expected recipes
-            let [$, articleObj, expectedRecipes] = prepArticle(htmlToParseFile, txtFile);
-
-            // Call findRecipes to parse the article for recipes, to compare the found recipes
-            //  to the expeced recipes, and to display the article if thefound and expected recipes
-            //  deviate.
-            // Returns 1 if the deviant article was displayed, 0 oterwise
-            let [deviantArticlesDisplayed] = await findRecipes($, articleObj, mainWindow, expectedRecipes);
-
-            // Accumulate the number of deviant articles
-            articlesDisplayed += deviantArticlesDisplayed
-          }
-        }
-      }
-    }
-
-    // If no articles were deviant, tell renderer.js 
-    //  to display an 'all valid' msg
-    if (articlesDisplayed == 0) {
-      mainWindow.webContents.send('validate-successful');
-    }
-
-    mainWindow.webContents.send('process-end')
-
-  })
 
   // Listen for NYTCooking Stop button click
   //  Stop filtering search results by setting continueWithResultsPages to false
