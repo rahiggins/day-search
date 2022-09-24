@@ -202,9 +202,6 @@ let dateToSearch;         // YYYY-MM-DD
 let debug = true;         // Used by Log function
 let articlePageIsOpen = false;  // true while an articlePage is open
 
-let writeToTestcase;      // Boolean - write articles to testcaseDateDir?
-let testcaseDateDir;      // ~/Library/Application Support/day-search/testcase/mm-dd-yyyy
-
 let parsedArticles = [];    // Array of urls of articles parsed
 let parseSkipped;           // Count of articles previously parsed, so skipped
 let articlesDisplayed;      // Count of articles displayed
@@ -699,22 +696,6 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
       foundRecipes = articleResults.recipes;
       articlesDisplayed += articleDisplayed;
 
-      if (writeToTestcase) {
-        // If 'Write to testcase' was selected, write the article html and
-        //  and object specifying the article url and the recipes found to testcaseDateDir 
-
-        // Create a safe filename for the files from the article title
-        let safeTitle = articles[a].title.replace(/\//g, "\\"); // / => \
-
-        // Write the html file to testcaseDateDir 
-        fs.writeFileSync(testcaseDateDir + safeTitle + ".html", $.html(), "utf8");
-
-        // Create the object specifying the article url and the recipes found and
-        //  write it to testcaseDateDir
-        let testcaseObj = createTestcaseObj(articles[a].link, foundRecipes);
-        fs.writeFileSync(testcaseDateDir + safeTitle + ".txt", testcaseObj, "utf8")
-      }
-
       // Close the article browser page
       await articlePage.close();
       articlePageIsOpen = false;
@@ -753,22 +734,6 @@ async function processDate (dateToSearch) {
   parsedArticles = [];
   articlesDisplayed = 0;
   parseSkipped = 0;
-
-  if (writeToTestcase) {
-    // For writeToTestcase, create an output directory for the date being processed.
-
-    // dateToSearch is YYYY-MM-DD.  Use match to extract YYYY and MM-DD from
-    //  dateToSearch, then form testcaseDateDir:
-    //  ~/Library/Application Support/day-search/testcase/mm-dd-yyyy
-    let m = dateToSearch.match(/^(?<yyyy>\d{4})-(?<mmdd>\d{2}-\d{2})$/);
-    let d = m.groups.mmdd + "-" + m.groups.yyyy;
-    testcaseDateDir = testcase + "/" + d + "/"; // testcaseDateDir is a global variable
-
-    if (!fs.existsSync(testcaseDateDir)) {
-      // If testcaseDateDir does not exist, create it
-      fs.mkdirSync(testcaseDateDir);
-    }
-  }
 
   //
   // Form the article search URL for the day's section that usually has recipes:
@@ -1368,9 +1333,8 @@ async function mainline () {
 
   // Handle date selection in mainWindow process
   ipcMain.on('process-date', async (event, arg) => {
-    dateToSearch = arg[0];
-    writeToTestcase = arg[1]; // writeToTestcase is a global variable
-    Log("process-date entered with dateToSearch: " + dateToSearch + ", writeToTestcase: " + writeToTestcase)
+    dateToSearch = arg;
+    Log("process-date entered with dateToSearch: " + dateToSearch)
 
     // Navigate to search results for selected date and date's section (Food or Magazine)
     await processDate(dateToSearch)

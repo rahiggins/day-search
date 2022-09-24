@@ -781,8 +781,8 @@ async function Mainline() {
         // Get the selected date (yyyy-mm-dd)
         let dateToSearch = dateInput.value;
 
-        // Send the date to process and the testcase switch value to the main process
-        window.electron.send('process-date', [dateToSearch, false])
+        // Send the date to process to the main process
+        window.electron.send('process-date', dateToSearch)
 
     }
 
