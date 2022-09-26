@@ -42,6 +42,9 @@ contextBridge.exposeInMainWorld(
         onCaptchaDetected: (fn) => {
           ipcRenderer.on('captcha-detected', (event, ...args) => fn(...args));
         },
+        onCaptchaSolved: (fn) => {
+          ipcRenderer.on('captcha-solved', (event, ...args) => fn(...args));
+        },
         clipboardWriteHTML: (arg) => {
           clipboard.writeHTML(arg);
         },

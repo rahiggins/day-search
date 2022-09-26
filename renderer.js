@@ -659,37 +659,28 @@ window.electron.onCaptchaDetected( () => {
 
     // Create a <p> element
     let captchaP = document.createElement('p');
+    captchaP.classList.add("text-warning", "msg");
 
     // Add 'Captcha detected!' to the <p> element
     let txnd = document.createTextNode('Captcha detected!');
     captchaP.appendChild(txnd);
-    
-    // Create a Solved button
-    let button = document.createElement('input');
-    button.classList = "btn btn-sm ml-2";
-    button.id = 'solved';
-    button.type = "button";
-    button.value = 'Solved';
-    button.name = button.id;
-
-    // Add the button to the <p> element
-    captchaP.appendChild(button)
 
     // Insert the <p> element at the beginning of the msgs div
     mL.prepend(captchaP)
 
-    // Listen for the Solved button to be clicked
-    button.addEventListener('click', (evt) => {
-        evt.preventDefault();
-        Log("Captcha solved button clicked")
+})
 
-        // Tell main process that the captcha has been solved
-        window.electron.send('captcha-solved')
+// On captcha solved, remove the 'Captcha detected' message
+window.electron.onCaptchaSolved( () => {
+    Log("captcha-solved received")
 
-        // Remove the captcha detected mesage and the Solved button
-        captchaP.remove()
-
-    },  {once: true});  // Remove the listener after a click
+    // Remove the captcha detected mesage and the Solved button
+    let msgs = mL.children;
+    for (let m = 0; m<msgs.length; m++) {
+        if (msgs[m].classList.contains('text-warning')) {
+            msgs[m].remove()
+        }
+    }
 
 })
 

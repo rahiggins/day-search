@@ -647,47 +647,41 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
       //  a message and a button, then wait for the renderer process to say
       //  the button was clicked, indicating that the captcha was solved.
       //  Repeat the goto article page.
-      do {
+      // Go to an article page
+      Log("Go to: " + articles[a].link);
+      await articlePage.goto(articles[a].link, {waitUntil: waitUntil});
+      Log("Back from: " + articles[a].link);
 
-        // Go to an article page
-        Log("Go to: " + articles[a].link);
-        await articlePage.goto(articles[a].link, {waitUntil: waitUntil});
-        Log("Back from: " + articles[a].link);
+      // Get the article page's HTML and create a Cheerio query function for the HTML
+      let articleHTML = await articlePage.content();
+      $ = cheerio.load(articleHTML);
 
-        // Get the article page's HTML and create a Cheerio query function for the HTML
-        let articleHTML = await articlePage.content();
-        $ = cheerio.load(articleHTML);
+      // If the article page contains no div elements, it's a CAPTCHA page.
+      //  Pause to allow the CAPTCHA to be manually solved
+      let divs = $('div')
+      if (divs.length == 0) {
+        Log("Captcha detected");
+        gotCaptcha = true;
+        mainWindow.setAlwaysOnTop(false);
 
-        // If the article page contains no div elements, it's a CAPTCHA page.
-        //  Pause to allow the CAPTCHA to be manually solved
-        let divs = $('div')
-        if (divs.length == 0) {
-          Log("Captcha detected");
-          gotCaptcha = true;
 
-          // Function to wait for the captcha solved button to be clicked
-          async function captchaSolution() {
-            return new Promise(function (resolve) {
-              ipcMain.on('captcha-solved', async (event, arg) => {
-                resolve();  // Resolve Promise
-              })
-            })
-          }
+        // Tell the renderer process to display a 'captcha detected' message.
+        mainWindow.webContents.send('captcha-detected')
 
-          // Tell the renderer process to display a 'captcha detected' message
-          //  and a button whose click indicates that the captcha was solved.
-          mainWindow.webContents.send('captcha-detected');
+        console.log("Waiting for navigation")
+        await articlePage.waitForNavigation()
+        console.log("Navigation ocurred")
 
-          // Wait for the captcha to be solved
-          await captchaSolution();
-          console.log("Captcha solved");        
+        mainWindow.setAlwaysOnTop(true);
 
-        } else {
-          // The article page was returned
-          gotCaptcha = false;
-        }
+        // Tell the renderer process to remove the 'captcha detected' message.
+        mainWindow.webContents.send('captcha-solved')
 
-      } while (gotCaptcha)  // Repeat until the article page is returned
+        // Create a Cheerio query function based to the article's HTML
+        articleHTML = await articlePage.content();
+        console.log("Length of article HTML: " + articleHTML.length.toString())
+        $ = cheerio.load(articleHTML)
+      }
 
       // Call findRecipes, which parses the article's HTML to identify recipes and
       //  displays those recipes.  The function returns 1 if the article was displayed,
@@ -1377,7 +1371,7 @@ async function mainline () {
   //  The mainWindow should be on top while the nytimes.com pages are being navigated and scraped
   //  It should no longer be on top when that process is finished to allow reviewing the pages retained
   ipcMain.on('mainAOT', (event, arg) => {
-    //mainWindow.setAlwaysOnTop(arg);
+    mainWindow.setAlwaysOnTop(arg);
   })
 
   ipcMain.on('mainFocus', (event, arg) => {
