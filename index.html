@@ -12,9 +12,10 @@
     <template id = article-title>
 
       <div class="divider text-left artdiv"></div>
-      <div class="container ml-1">
+      <div class="container px-0">
         <div class="columns col-oneline">
-          <div class="column col-auto"><a></a>
+          <div class="column col-auto">
+            <a></a>
           </div>
         </div>
         <p class="mb-0"></p>
@@ -25,9 +26,11 @@
     <template id = article-title-searchAll>
 
       <div class="divider text-left artdiv"></div>
-      <div class="container ml-1">
+      <!-- <div class="container ml-1"> -->
+      <div class="container px-0">
         <div class="columns col-oneline">
-          <div class="column col-auto"><a></a>
+          <div class="column col-auto">
+            <a></a>
           </div>
           <div class="column col-1">
             <button class="btn btn-sm ml-2 disen"
@@ -37,6 +40,46 @@
           </div>
         </div>
         <p class="mb-0"></p>
+      </div>
+
+    </template>
+
+    <template id="article-save">
+
+      <div>
+        <div class="divider text-left artdiv"></div>
+        <div class="form-group">
+          <textarea class="form-input" id="articleTitle" readonly rows="1"></textarea>
+          <label class="form-label" for="expectedRecipes">Recipes</label>
+          <textarea class="form-input" id="expectedRecipes" rows="3"></textarea>
+          <label class="form-checkbox form-inline">
+            <input type="checkbox" id="hasArticleClass">
+            <i class="form-icon"></i> hasArticleClass
+          </label>
+          <label class="form-checkbox form-inline">
+            <input type="checkbox" id="hasTitlePunct">
+            <i class="form-icon"></i> hasTitlePunct
+          </label>
+          <label class="form-checkbox form-inline">
+            <input type="checkbox" id="isNotSolved">
+            <i class="form-icon"></i> isNotSolved
+          </label>
+          <label class="form-checkbox form-inline">
+            <input type="checkbox" id="hasUnquantifiedIngredient">
+            <i class="form-icon"></i> hasUnquantifiedIngredient
+          </label>
+          <label class="form-checkbox form-inline">
+            <input type="checkbox" id="hasFragmentedTitle">
+            <i class="form-icon"></i> hasFragmentedTitle
+        </div>
+        <div class="columns col-oneline mt-2">
+          <div class="column col-auto">
+            <button class="btn btn-sm disen" id="viewButton">View article</button>
+          </div>
+          <div class="column col-1">
+            <button class="btn btn-sm disen" id="saveButton">Save</button>
+          </div>
+        </div>
       </div>
 
     </template>

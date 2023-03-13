@@ -1523,4 +1523,59 @@ Seq: 2056,  1999-01-13 Article: Where Indulgence Grows on Trees
     previously found, the unnumbered ingredient is not prepended to joinAccumRecipeName,
     and therefore in can't be recognized as an unnumbered ingredient.
 
+Seq: 2077,   1999-05-05 Article: THE CHEF
+    Second recipe: spurious
 
+    First recipe, second instruction step ends with 'Makes about ...'
+    Taken as end-of-recipe. Next instruction taken as recipe name.
+
+Seq: 2080,   1999-05-12 Article: Rosemary In Spring: Power With Restraint
+    Third recipe: hasUnquantifiedIngredient missed
+
+    '1 to 2 tablespoons fresh rosemary leaves, plus additional leaves for garnish.' not
+    recognized as an ingredient
+
+Seq: 2093,   1999-05-23 Article: Strawberry Fields Are Not Forever. Enjoy Them Now.
+    First recipe: text <recipe name>
+
+    The 2 paragraph preceding the recipe name:
+        - first paragraph does not end with terminal punctuation and so is 
+            prepended to the recipe name
+        - second paragrapgh ends with <.'"> preventing detection ofthe terminal 
+            punctuation and so is prepended to the recipe name
+    
+Seq: 2174,   1999-08-11 Article: BY THE BOOK; Lessons on Deciphering an Asian Grocery
+    hasUnquantifiedIngredient not set to true
+
+    Second recipe has unquantified ingredient, "Bean sprouts, for garnish", but
+    previously scanned ingredient, "1 lime, cut into wedges, for garnish.", has 
+    terminal punctuation and so is not recognized as an ingredient. Because of that,
+    both "1 lime" and "Bean sprouts" are skipped over, and the unquantified
+    ingredient is not recognized.
+
+Seq: 2183,   1999-08-15 Article: Food; How to Stuff a Wild Zucchini
+    third recipe missed
+
+    Third recipe has no recipe marker
+
+Seq: 2193,   1999-08-22 Article: FOOD; Recipes From Restaurants That Buy From an Organic Farm
+
+    Recipe names have the for X: <recipe name>
+        Remove 'X: '?
+
+Seq: 2242,   1999-10-10 Article: Food; Acid Reigns
+    Fourth recipe missed
+
+    Recipe has no end-of-recipe marker
+
+Seq: 2264,   1999-10-31 Article: Food; Salem's Lot
+    Second recipe mischaracterized as 'In'
+
+    Recipe marker is 'Yield:'
+    Instructions are 1 unnumbered paragrapgh
+    First ingredient parsed (last ingredient) ends with terminal punct.
+    So the first (capitalized) word [In] of the instructions paragraph is taken as the recipe name.
+    The second (uncapitalized) word of the instructions paragraph was 'a'
+
+Seq: 2295,   1999-11-28 Article: FOOD; Soup Comes to the Rescue as a First Course Idea
+    First recipe truncated because title contains 'From'

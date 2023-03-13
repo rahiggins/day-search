@@ -1,3 +1,34 @@
+---------------
+NYTCooking search issues:
+
+NYTCooking search results pages have been changed - arbitrary character strings are 
+appended to class names
+
+
+
+
+
+
+---------------
+with-getA issues:
+
+  lastStoredDate should be incremented after retrieval. dateToSearch should be set globally.
+
+  When saving an article, the contents of the <div> element whose id is the article's 
+   sequence number should be emptied (child elements removed), so that the article-title, 
+   recipe-list and recipe-name templates can be appended to it.
+
+  In index.js, keep article HTML in an global scope object with seq number as key. In
+    ipcMain.handle('save-article'), get article HTML from the global scope object.
+
+-----------------
+with-getA, NYTCooking issues:
+
+  author search results are unstable - duplicates and missed recipes
+    Try searching for <author> <recipe name>
+
+----------------
+General issues:
 
 The titleMatch processing in adjustTitle (lib.js) needs review.  The wild population of titles
  should be inventoried.
@@ -55,6 +86,10 @@ index.js should incorporate elements of getArticle.js for each article:
   - The <small> list of discovered recipes should be a textArea.
   - The attributes checkboxes should be displayed
   - The article should be stored in the articles table of the NYTarticles database
+
+In function processSectionOrKeywords:
+  There seems to be a problem getting the complete section/keyword search results by clicking 'More'
+   buttons. Waiting a quarter second for the search results number to change? 
 
 -----------------------------------------------------------
 getArticles issues:
