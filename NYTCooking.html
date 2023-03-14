@@ -1,26 +1,90 @@
 <!DOCTYPE html>
-<!-- Author version -->
+<!-- Author version-->
+<!-- Templates version -->
 <html>
+
   <head>
     <meta charset="UTF-8">
     <title>Author/Recipe Search</title>
     <link rel="stylesheet" href="fonts.css">
-    <link rel="stylesheet" href="NYTcore.min.css">
     <link rel="stylesheet" href="spectre.min.css">
     <link rel="stylesheet" href="spectre-icons.min.css">
-    <link rel="stylesheet" href="NYTstyles.css">
     <link rel="stylesheet" href="AppStyles.css">
+
     <style>      
-    .vertical-centerish {
-      margin: 0;
-      position: absolute;
-      top: 40%;
-      -ms-transform: translateY(-54%);
-      transform: translateY(-40%);
-    }
-      </style>
+      .vertical-centerish {
+        margin: 0;
+        position: absolute;
+        top: 40%;
+        -ms-transform: translateY(-54%);
+        transform: translateY(-40%);
+      }
+    </style>
+
   </head>
+
   <body>
+
+    <!-- Template for recipe search results infrastructure:
+
+      - Divider with recipe name
+      - Div for exact matches
+        - <p> element with text Exact Match, initially display: none
+        - div to contain recipe cards
+      - Div for fuzzy matches
+        - <p> element with text Fuzzy Match, initially display: none
+        - div to contain recipe cards
+        
+    -->
+
+    <template id="recipeResultsTemplate">
+      <div id="recipe" class="column col-12 pt-2">
+        <div class="keywDiv">
+          <div class="recdiv divider text-left" data-content="recipe name"></div>
+        </div>
+        <div class="pl-2 ml-2">
+          <div class="container ml-1" id="exact">
+            <p id="exactMatchPara" class="d-none mb-2 text-gray">
+              Exact Match
+            </p>
+            <div class="columns" data-match-type="exact" id="exactColumns">
+            </div>
+          </div>
+          <div class="container ml-1" id="fuzzy">
+            <p id="fuzzyMatchPara" class="d-none mb-2 text-gray">
+              Fuzzy Match
+            </p>
+            <div class="columns" data-match-type="fuzzy" id="fuzzyColumns">
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- Template for a recipe card -->
+    <template id="recipeCardTemplate">
+      <div class="column col-3 py-2">
+        <div class="cardStyle">
+           <article class="artStyle">
+               <a class="cardLinkStyle">
+                   <figure class="figureStyle">
+                    <div class="figureDivStyle">
+                      <img class="imageStyle">                     
+                    </div>
+                   </figure>
+                   <section class="cardSectionStyle">
+                       <h3 class="cardTitleStyle""></h3>
+                       <p class="cardBylineStyle"></p>
+                       <p class="cardCooktimeStyle"></p>
+                   </section>
+               </a>
+           </article>
+        </div>
+      </div>
+    </template>
+
+    <!-- Author Search page -->
+    
     <div class="container">
 
       <div class="columns m-2">
@@ -46,11 +110,14 @@
         </div>
       </div>
 
+      <!-- Recipe search results are inserted in this div -->
       <div id="recipes" class="columns m-2">
       </div>
 
     </div>
 
     <script src='./NYTCooking-renderer.js'></script>
+
   </body>
+  
 </html>

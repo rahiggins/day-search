@@ -5,7 +5,7 @@
 // in order to make possible communication between the main process and the
 // renderer process.  This script also exposes clipboard.write functions.
 
-const { contextBridge, ipcRenderer, clipboard } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
 
 // Define functions to be exposed to the NYTCooking-renderer process
 contextBridge.exposeInMainWorld(
@@ -13,7 +13,8 @@ contextBridge.exposeInMainWorld(
     {
         send: (channel, data) => {
           // whitelist channels
-          let validChannels = ['stop-NYTCooking', 'close-NYTCooking', 'article-open'];
+          let validChannels = ['stop-NYTCooking', 'close-NYTCooking', 'article-open',
+                                'write-HTML'];
           if (validChannels.includes(channel)) {
               ipcRenderer.send(channel, data);
           }
@@ -33,9 +34,6 @@ contextBridge.exposeInMainWorld(
         },
         onSetName: (fn) => {
           ipcRenderer.on('set-name', (event, ...args) => fn(...args));
-        },
-        clipboardWriteHTML: (arg) => {
-          clipboard.writeHTML(arg);
         }
     }
 )

@@ -3,20 +3,21 @@
 // granted more privileges by having access to Node.js APIs.  It uses the
 // contextBridge module to expose specific ipcRenderer functions to the renderer process
 // in order to make possible communication between the main process and the
-// renderer process.  This script also exposes clipboard.write functions.
+// renderer process.
 
-const { contextBridge, ipcRenderer, clipboard } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
 
 // Define functions to be exposed to the renderer process
 contextBridge.exposeInMainWorld(
     'electron',
     {
-        getLastDate: () => ipcRenderer.invoke('getLastDate'),
+        getNextDate: () => ipcRenderer.invoke('getNextDate'),
+        saveArticle: (args)  => ipcRenderer.invoke('save-article', ...args),
         send: (channel, data) => {
           // whitelist channels
           let validChannels = ['mainAOT', 'article-open', 'author-search', 
-                                'captcha-solved', 'process-date', 'process-file', 
-                                'process-validate', 'dialog-error', 'reset-window'];
+                                'captcha-solved', 'process-date', 'dialog-error', 
+                                'reset-window', 'write-HTML', 'write-text'];
           if (validChannels.includes(channel)) {
               ipcRenderer.send(channel, data);
           }
@@ -33,23 +34,23 @@ contextBridge.exposeInMainWorld(
         onProcessEnd: (fn) => {
           ipcRenderer.on('process-end', (event, ...args) => fn(...args));
         },
+        onArticleSave: (fn) => {
+          ipcRenderer.on('article-save', (event, ...args) => fn(...args));
+        },
         onArticleDisplay: (fn) => {
           ipcRenderer.on('article-display', (event, ...args) => fn(...args));
         },
         onEnableSearchButtons: (fn) => {
           ipcRenderer.on('enable-searchButtons', (event, ...args) => fn(...args));
         },
+        onEnableSaveButtons: (fn) => {
+          ipcRenderer.on('enable-saveButtons', (event, ...args) => fn(...args));
+        },
         onCaptchaDetected: (fn) => {
           ipcRenderer.on('captcha-detected', (event, ...args) => fn(...args));
         },
-        onValidateSuccessful: (fn) => {
-          ipcRenderer.on('validate-successful', (event, ...args) => fn(...args));
-        },
-        clipboardWriteHTML: (arg) => {
-          clipboard.writeHTML(arg);
-        },
-        clipboardWriteText: (arg) => {
-          clipboard.writeText(arg);
+        onCaptchaSolved: (fn) => {
+          ipcRenderer.on('captcha-solved', (event, ...args) => fn(...args));
         }
     }
 )

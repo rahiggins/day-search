@@ -730,6 +730,17 @@ function recipeParse(demarcation, $, paras, arr, articleObj) {
       if ($(paras[i]).parents("section[role=complementary]").length > 0) {
         continue
       }
+
+      // Starting in early 2023, a div with an id starting with 'story-ad' that
+      //  contains a <p> element may be inserted at arbitary locations
+      //  in the article.  This <p> element has no relevance to the article
+      //  and must be skipped.
+      let parentID = $(paras[i]).parent().attr('id')
+      if (parentID && parentID.startsWith('story-ad')) {
+        // If parentID is truthy (i.e. not undefined) and starts with story-ad,
+        //  skip this <p> element
+        continue
+      }
       
       // Get text of each <p> element
       let paraText = $(paras[i]).text();

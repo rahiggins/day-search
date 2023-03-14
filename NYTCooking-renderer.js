@@ -1,14 +1,23 @@
 // Manage NYTCooking BrowserWindow
 // Single search version
+// Recipe card template version
+
+// This script:
+//  - Appends a clone of the recipeResultsTemplate to the recipes div for each recipe being searched
+//  - Appends a clone of the recipeCardTemplate to the appropriate recipe card display div for each recipe
+//     that matches the seach criteria
+//  - Handles clicks on the Stop, Clear and Close buttons
+//  - Handles clicks and double clicks on recipeCards
 
 // Code structure:
 //
 //  Global variable definitions
 //  Global function definitions
+//    function Log      
 //    function addProgress
 //    function displayRecipe
-//      section.lastChild addEventListener for click => articleClick
-//      section.lastChild addEventListener for contextmenu => articleOpen
+//      article.lastChild addEventListener for click => articleClick
+//      article.lastChild addEventListener for contextmenu => articleOpen
 //    function clearClick
 //    function stopClick
 //    function closeClick
@@ -50,21 +59,23 @@
 //      calls addRecipeDiv
 //
 //   displayRecipe
-//      section.lastChild EventListener
+//      article.lastChild EventListener
 //         calls articleClick
-//      section.lastChild EventListener
+//      article.lastChild EventListener
 //         calls articleOpen
 //
 // Display infrastructure:
 //
-//  <div id=' recipe name hash '>
+//  <div id='recipe'>
 //      <div class='keywDiv>        only if multipleRecipes
 //          <div class='divider'>
-//      <div class='sectDiv'>
-//          <p>                     only if <article> element is appended to <section>
-//          <section>
-//          <p>                     only if <article> element is appended to <section>
-//          <section>
+//      <div>
+//          <div id='exact'>
+//              <p>                     initially display: none
+//              <div>                   recipe card display div
+//          <div id='fuzzy'>
+//              <p>                     initially display: none
+//              <div>                   recipe card display div
 
 // Define variables for NYTCooking.html elements
 const recipesDiv = document.getElementById("recipes");
@@ -73,14 +84,17 @@ const clearButton = document.getElementById("clearButton");
 const stopButton = document.getElementById("stopButton");
 const closeButton = document.getElementById("closeButton");
 const mL = document.getElementById('msgs');
+const recipeResultsContent = document.getElementById('recipeResultsTemplate').content   // Template content
+const recipeCardContent = document.getElementById('recipeCardTemplate').content         // Template content
 const debug = true;
 
 // Define arrays of display infrastructure elements
-let sectDivs;                           // Array of <div> elements that contain <section> elements
-let exactSections;                      // Array of exact match sections
-let exactSectionIsNotInitialized = [];  // Array of booleans
-let fuzzySections;                      // Array of fuzzy match sections
-let fuzzySectionIsNotInitialized = [];  // Array of booleans
+let divElements;    // HTMLCollection of <div> elements
+
+// Define an object used to indicate which recipe card display divs already contain recipe cards and
+//  therefore don't need to have their exactMatchPara/fuzzyMatchPara <p> element made visible
+let isPopulated = {}; // Keys of this object are the id attributes of the previously populated
+                        //  recipe card display divs
 
 // Function definiitions
 
@@ -107,82 +121,76 @@ function addProgress(now,max) {
 }
 
 async function displayRecipe(args) {
-    // Add a matching recipe <article> element to the designated section, exact or fuzzy
+    // Add a recipe card to the designated recipe card display div
     // Called from window.NYTC.onDisplayRecipe
-    // Input:   <article> element HTML,
+    // Input:   stringified articleDataObj,
     //          match type, "exact" ot "fuzzy"
     //          target recipe name
     //          index of target recipe name in array of recipe names
 
     // Parse args[]
-    let [html, matchType, recipeName, index] = args
+    let [stringifiedArticleDataObj, matchType, recipeName, index] = args;
 
-    // Set the recipe-specific ID for display elements
-    let recipeID = 'recipe' +  index.toString().padStart(2, '0');   // recipeNN
-    let displaySection = recipeID + matchType;
-    console.log("Display: " + recipeName + " at " + displaySection + ", index: " + index.toString());
+    Log("displayRecipe entered for recipe: " + recipeName);
+    //console.log("stringifiedArticleDataObj: " + stringifiedArticleDataObj)
 
-    let section;            // <section> element targeted for recipe display
-    let isNotInitialized;   // booolean indicating that section needs to be initialized for recipe display
+    // Objectify argument stringifiedArticleDataObj
+    let articleDataObj = JSON.parse(stringifiedArticleDataObj);
 
-    // Identify the target <section> element where the matching recipe is to be displayed and
-    //  the associated section-is-NotInitialized indicator
-    switch (matchType) {
-        case 'exact':
-            section = exactSections[index];
-            isNotInitialized = exactSectionIsNotInitialized[index];
-            break;
-        case 'fuzzy':
-            section = fuzzySections[index];
-            isNotInitialized = fuzzySectionIsNotInitialized[index];
-            break;
+    // Form the ID of the <div> element in which the recipe card should be displayed
+    targetDivID = 'recipe' + index.toString().padStart(2, '0') + matchType + 'Columns';
+
+    // Get the div where the recipe card will be displayed
+    let divElementNamed = divElements.namedItem(targetDivID);
+
+    // If this recipe is the first to be added to this recipe card display div, remove the display:none 
+    //  attribute from the <p> element that contains 'Exact Match' or 'Fuzzy Match'
+    if (!isPopulated[targetDivID]) {
+        // If the target recipe display div has not been previously populated ...
+
+        // ... remove display:none ...
+        divElementNamed.parentNode.firstElementChild.classList.remove('d-none');
+
+        // ... and indicate that the div has been populated
+        isPopulated[targetDivID] = "populated";
+
+        Log(targetDivID + " has been populated")
     }
 
-    if (isNotInitialized) {
-        // If the target <section> element has not been initialized ...
-        console.log("Display section: " + displaySection + " is NotInitialized,  displayIndex: " + index.toString());
+    // Clone the recipeCard template content and add recipe information from the articleDataObj object
+    //  to the clone
+    let recipeCard = recipeCardContent.cloneNode(true);
 
-        // Set data-layout = grid
-        section.dataset.layout = 'grid';
+    // Identify elements in the cloned recipeCard to which recipe information will be added
+    let recipeCardArt = recipeCard.querySelector('article')
+    let recipeCardA = recipeCard.querySelector('a')
+    let recipeCardFigureDiv = recipeCard.querySelector('.figureDivStyle')
+    let recipeCardH3 = recipeCard.querySelector('h3')
+    let recipeCardByline = recipeCard.querySelector('.cardBylineStyle')
+    let recipeCardTime = recipeCard.querySelector('.cardCooktimeStyle')
 
-        // Get the parent <div> of the target <section>
-        let thisSectDiv = sectDivs[index];
+    // Add recipe information to the cloned recipeCard
+    recipeCardArt.dataset.url = 'https://cooking.nytimes.com' + articleDataObj.href
+    recipeCardA.href = articleDataObj.href
+    recipeCardH3.textContent = articleDataObj.recipeName;
+    recipeCardByline.innerText = articleDataObj.author
+    recipeCardTime.innerText = articleDataObj.time
 
-        // Create a descriptive <p> element to be inserted before the target <section> element
-        let match = document.createElement('p');
-        match.classList = "mb-2"
-        match.style.color = "grey"
-
-        // Set the descriptive <p> element's text according to the match type and
-        //  indicate that the <section> element has been initialized
-        switch (matchType) {
-            case 'exact':
-                exactSectionIsNotInitialized[index] = false;
-                match.textContent = 'Exact match'; 
-                break;
-            case 'fuzzy':
-                fuzzySectionIsNotInitialized[index] = false;
-                match.textContent = 'Fuzzy match'; 
-                break;
-        }
-        
-        // Insert the descriptive <p> element before the target <section> element
-        thisSectDiv.insertBefore(match,section);
-    }
-
-    // Create a template element that will contain a recipe card (an <article> element)
-    let temp = document.createElement('template');
-
-    // Set the template's HTML to the <article> element's HTML
-    temp.innerHTML = html;
+    // Set the source attribute of the recipe card <img> element
+    recipeCardFigureDiv.firstElementChild.src = articleDataObj.dlImg    
 
 
-    // Append the <article> element to the target section,
-    //  add 'click' and 'contextmenu' event listebers to the <article> element,
-    //  and enable the Clear button
-    section.appendChild(temp.content.firstChild);
-    section.lastChild.addEventListener("click", articleClick, false);
-    section.lastChild.addEventListener("contextmenu", articleOpen, false);
+
+    // Append the cloned recipeCard to the recipe card display div
+    Log("Appending recipe card to div: " + targetDivID);
+    divElementNamed.appendChild(recipeCard);
+
+    // Add event listeners to the <artcle> element of the appended recipeCard
+    let article = divElementNamed.lastElementChild.querySelector('article')
+    article.addEventListener("click", articleClick, false);
+    article.addEventListener("contextmenu", articleOpen, false);
+
+    // Enable the Clear and Stop buttons
     clearButton.disabled = false;
     stopButton.disabled = false;
 }
@@ -190,8 +198,8 @@ async function displayRecipe(args) {
 async function clearClick (evt) {
     // Click event handler for Clear button
     //  Remove article elements
-    console.log("Clear clicked");
-    console.log("evt type: " + typeof evt)
+    Log("Clear clicked");
+    Log("evt type: " + typeof evt)
     if (typeof evt == "object") {
         evt.preventDefault();
     }
@@ -211,7 +219,7 @@ async function clearClick (evt) {
 async function stopClick (evt) {
     // Click event handler for Stop button
     //  Send Stop request to main process
-    console.log("Stop clicked");
+    Log("Stop clicked");
     evt.preventDefault();
 
     // Clear messages, including progress-bar
@@ -225,7 +233,7 @@ async function stopClick (evt) {
 async function closeClick (evt) {
     // Click event handler for Close button
     //  Send close request to main process.
-    console.log("Close clicked");
+    Log("Close clicked");
     evt.preventDefault();
     window.NYTC.send('close-NYTCooking')
 }
@@ -233,96 +241,97 @@ async function closeClick (evt) {
 async function articleClick (evt) {
     // Click event handler for recipes (<article> elements)
     //  Form link element for recipe and write to clipboard
-    console.log("Article clicked");
+    Log("Article clicked");
     evt.preventDefault();
     let parent = evt.target.parentNode
     while (parent.tagName != "ARTICLE") {
         parent = parent.parentNode
     }
     let name = parent.innerText.split('\n');
-    let recipeLink = '<a href="https://cooking.nytimes.com' + parent.dataset.url;
+    let recipeLink = '<a href="' + parent.dataset.url;
     recipeLink += '">' + name[0] + '</a>';
-    console.log(recipeLink);
-    window.NYTC.clipboardWriteHTML(recipeLink);
+    Log("Copied url: " + recipeLink);
+    window.NYTC.send('write-HTML', recipeLink);
 
 }
 
 async function articleOpen (evt) {
     // ContextMenu event handler for recipes (<article> elements)
     //  IPC send to open recipe in Chrome
-    console.log("Article opened");
+    Log("Article opened");
     evt.preventDefault();
     let parent = evt.target.parentNode
     while (parent.tagName != "ARTICLE") {
         parent = parent.parentNode
     }
+
     let name = parent.innerText.split('\n');
-    let recipeURL = "https://cooking.nytimes.com" + parent.dataset.url
-    console.log("Opened recipe: " + name[0]);
-    console.log(recipeURL);
-    window.NYTC.send('article-open', recipeURL);
+
+    Log("Opened recipe: " + name[0]);
+    console.log(parent.dataset.url);
+    window.NYTC.send('article-open', parent.dataset.url);
 }
 
 // Mainline function
 async function Mainline() {
 
     function addRecipeDiv(i, name, multipleRecipes) {
-        // Add recipe display infrastructure to the Author/Recipe Search window
-        // Input:   target recipe name - string
+        // Add recipe search results display infrastructure to the Author/Recipe Search window
+        // Input:   index of this recipe name - number  
+        //          target recipe name - string
         //          indicator that multiple recipes are being displayed - boolean
-    
-        // Create a recipe-specific ID for display elements
+
+        Log("addRecipeDiv entered for: " + name)
+
+        // Clone the recipe search results infrastructure template
+        let recipeResults = recipeResultsContent.cloneNode(true);
+
+        // Create a recipe-specific ID for display elements: 'recipe<padded index>'
         let recipeID = 'recipe' + i.toString().padStart(2, '0');
-    
-        // Create a <div> element for the target recipe
-        let recipeDiv = document.createElement('div');
+
+        // Change generic element IDs in the recipe search results infrastructure template clone
+        //  to recipe-specific IDs
+        const recipeDiv = recipeResults.querySelector('#recipe')
         recipeDiv.id = recipeID;
-        recipeDiv.classList = "column col-12 pt-2"
-    
-        // Create a <div> element for a divider
-        let nameDiv = document.createElement("div");
+        const exactDiv = recipeResults.querySelector('#exact')
+        exactDiv.id = recipeID + 'exact'
+        const exactPara = recipeResults.querySelector('#exactMatchPara')
+        exactPara.id = recipeID + 'exactMatchPara'
+        const exactColumnsDiv = recipeResults.querySelector('#exactColumns')
+        exactColumnsDiv.id = recipeID + 'exactColumns'
+        const fuzzyDiv = recipeResults.querySelector('#fuzzy')
+        fuzzyDiv.id = recipeID + 'fuzzy'
+        const fuzzyPara = recipeResults.querySelector('#fuzzyMatchPara')
+        fuzzyPara.id = recipeID + 'fuzzyMatchPara'
+        const fuzzyColumnsDiv = recipeResults.querySelector('#fuzzyColumns')
+        fuzzyColumnsDiv.id = recipeID + 'fuzzyColumns'
+
+        // For multiple recipes, set the divider data-content; else remove the divider
         if (multipleRecipes) {
-            // If multiple recipes are being displayed, create a divider and add it to the divider <div>
-            nameDiv.className = "keywDiv";
-            let divDiv = document.createElement("div");
-            divDiv.className = "recdiv divider text-left";
+            // Set divider data-content = recipe name
+            let divDiv = recipeResults.querySelector('.recdiv');
             divDiv.setAttribute('data-content', name);
-            nameDiv.appendChild(divDiv)
+        } else {
+            // Remove the div containing the recipe divider element
+            const keywDiv = recipeResults.querySelector('.keywDiv');
+            keywDiv.remove()
         }
     
-        // Create a <div> element for the exact match and fuzzy matches <section> elements
-        let sectDiv = document.createElement('div');
-        sectDiv.classList = "pl-2 ml-2 sectDiv";
-    
-        // Create a <section> element for the exact match to the target recipe name
-        let exactSect = document.createElement('section');
-        exactSect.classList = 'recipe-card-list track-card-params ml-1';
-        exactSect.dataset.matchType = 'exact';
-        exactSect.id = recipeID + "exact"
-    
-        // Create a <section> element for the fuzzy matches to the target recipe name
-        let fuzzySect = document.createElement('section');
-        fuzzySect.classList = 'recipe-card-list track-card-params ml-1';
-        fuzzySect.dataset.matchType = 'fuzzy'
-        fuzzySect.id = recipeID + "fuzzy"
-    
-        // Add the <section> elements to the <div> for sections
-        sectDiv.appendChild(exactSect);
-        sectDiv.appendChild(fuzzySect)
-    
-        // Add the divider <div> and the section <div> to the target recipe <div>
-        recipeDiv.appendChild(nameDiv);
-        recipeDiv.appendChild(sectDiv)
-    
-        // Add the target recipe <div> to the window
-        recipesDiv.appendChild(recipeDiv);
+        // Add the recipe search results infrastructure clone to the window
+        recipesDiv.appendChild(recipeResults);
     }
 
-    function newRecipeDisplay(author, recipeNames, multipleRecipes) {
+    function newRecipeDisplay(searchArgs) {
         // Prepare the window for display of a new recipe or set of recipes
-        // Input:   author - string
-        //          target recipe names - array of strings
-        //          indicator that multiple recipes are being displayed - boolean
+        // Input:   [author - string,
+        //          target recipe names - array of strings,
+        //          indicator that multiple recipes are being displayed - boolean]
+
+        Log("newRecipeDisplay entered with SearchArgs: " + searchArgs);
+        let [author, recipeNames, multipleRecipes] = searchArgs;
+        Log("author: " + author);
+        Log("name: " + recipeNames);
+        Log("multipleRecipes: " + multipleRecipes);
 
         // Set display name for the recipe search argument
         if (multipleRecipes) {
@@ -343,78 +352,39 @@ async function Mainline() {
         }
         clearButton.disabled = true;
         
-        // Reset arrays
-        exactSectionIsNotInitialized = [];
-        fuzzySectionIsNotInitialized = [];
+        // Reset the recipe card display <div> element initializtion status
+        isPopulated = {}
 
         // Add display infrastructure for each recipe to the window
         for (let i = 0; i < recipeNames.length; i++) {
             addRecipeDiv(i, recipeNames[i], multipleRecipes);
         }
 
-        // Create arrays of the various recipe display infrastructure elements
-        console.log("Gather sections");
 
-        // Create array of <div> elements that are parents of the recipe <section> elements
-        sectDivs = document.getElementsByClassName('sectDiv');
-        console.log("Number of sectDiv: " + sectDivs.length.toString());
-
-        // Create array of <section> elements
-        let sectionsArray = Array.from(document.getElementsByTagName('section'), s => s)
-
-        // Create array of exact match <section> elements and
-        //  set corresponding IsNotInitialized indicators to 'true'
-        exactSections = sectionsArray.filter(s => s.dataset.matchType == 'exact')
-        console.log("Number of  exact sections: " + exactSections.length.toString())
-        for (let i = 0; i < exactSections.length; i++) {
-            exactSectionIsNotInitialized.push(true);
-        }
-
-        // Create array of fuzzy match <section> elements and
-        //  set corresponding IsNotInitialized indicators to 'true'
-        fuzzySections = sectionsArray.filter(s => s.dataset.matchType == 'fuzzy')
-        console.log("Number of  fuzzy sections: " + fuzzySections.length.toString())
-        for (let i = 0; i < fuzzySections.length; i++) {
-            fuzzySectionIsNotInitialized.push(true);
-        }
+        // Create an HTMLCollection of <div> elements
+        divElements = document.getElementsByTagName('div');
 
     }
  
 
     // Add EventListeners for click on the Stop, Clear and Close buttons.
-    console.log("Mainline: Adding event listener to Stop, Clear and Close buttons");
+    Log("Mainline: Adding event listener to Stop, Clear and Close buttons");
     stopButton.addEventListener("click", stopClick, false);
     clearButton.addEventListener("click", clearClick, false);
     closeButton.addEventListener("click", closeClick, false);
 
-    // Get search arguments: author, name(s) of recipe(s), multiple recipe indicator
-    let searchArgs = await window.NYTC.getSearchArgs();
-    console.log("Got searchArgs: " + searchArgs);
-    let [author, recipeNames, multipleRecipes] = searchArgs;
-    console.log("author: " + author);
-    console.log("name: " + recipeNames);
-    console.log("multipleRecipes: " + multipleRecipes);
+    // Get search arguments: author, name(s) of recipe(s), multiple recipe indicator and
+    //  call newRecipeDisplay to add display infrastructure for them to the Author/Recipe Search window
+    newRecipeDisplay(await window.NYTC.getSearchArgs());
 
-    // Prepare the window for a new display
-    newRecipeDisplay(author, recipeNames, multipleRecipes);
-
-    // Listen for 'set-name' directive
+    // Listen for 'set-name' message
     window.NYTC.onSetName( (searchArgs) => {
-        // Set search arguments and display them
-        // Input:   author
-        //          array of recipe names
-        //          boolean indicating multiple recipes
+        // Input: search arguments - author, name(s) of recipe(s), multiple recipe indicator
 
-        console.log("Set searchArgs: " + searchArgs);
-        let [author, recipeNames, multipleRecipes] = searchArgs;
-        console.log("author: " + author);
-        console.log("name: " + recipeNames);
-        console.log("multipleRecipes: " + multipleRecipes);
-
-        // Prepare the window for a new display
-        newRecipeDisplay(author, recipeNames, multipleRecipes)
-    
+        // Add display infrastructure for search arguments to the Author/Recipe Search window 
+        newRecipeDisplay(searchArgs);
     })
+
 
     // Listen for 'progress-bar' update
     window.NYTC.onProgressBar( (args) => {
@@ -440,23 +410,24 @@ async function Mainline() {
         }
     })
 
-    // Listen for 'no-results' signal
+    // Listen for 'no-results' message
     window.NYTC.onNoResults( (arg) => {
         // Remove messages, including progress-bar
         while (mL.firstChild) {
             mL.removeChild(mL.firstChild);
         }
 
-        // Add a 'No results' message
+        // Add 'No results' to the window
         let noResP = document.createElement("p");
         noResP.classList = "text-error m-0 mt-2";
+        arg = !arg ? "" : " - " + arg 
         let txt = "No results" + arg;
         let txnd = document.createTextNode(txt);
         noResP.appendChild(txnd);;
         mL.appendChild(noResP);
     })
 
-    // Listen for 'clear-messages' directive
+    // Listen for 'clear-messages' message
     window.NYTC.onClearMessages( () => {
         // Remove messages, including progress-bar
         while (mL.firstChild) {
@@ -464,10 +435,10 @@ async function Mainline() {
         }
     })
 
-    // Listen for 'display-recipe' directive
+    // Listen for 'display-recipe' message
     window.NYTC.onDisplayRecipe( (args) => {
-        // Display recipe cards        
-        // Input:   <article> element HTML,
+        // Display a recipe card 
+        // Input:   stringified articleDataObj,
         //          match type, "exact" ot "fuzzy"
         //          target recipe name
         //          index of target recipe name in array of recipe names
