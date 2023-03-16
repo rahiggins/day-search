@@ -89,3 +89,136 @@ Add function to search NYT Cooking for all of an article's recipes in one search
     fonts.css
 
         - Removed superfluous tabs
+
+
+3/13/2023
+
+     AppStyles.css
+        Add styles for recipeCard template.  These styles were copied from the NYTCooking search
+        results display using Chrome developer tools
+    
+    index.html
+        Add a template for the article display for save elements
+        Remove indent of article title display-for-search
+    
+    index.js
+        Add documentation of objects created
+        Add requires for clipboard, https, mysql2/promise, dayjs, and dayjs/plugin/customParseFormat
+        Add functions getArticleClass, getAuthor to functions imported from lib.js
+        Delete function prepArticle
+        Add function getRandomInt
+        Delete save-to-testcase code
+        In function processSectionOrKeywords:
+            Add function displayRecipeArticles to display article for save
+            Add Puppeteer waitForTimeout(getRandomInt()) calls before Puppeteer goto calls to avoid
+             being identified as a robot
+            Replace the call to funtion findRecipes to display the article for search with a call
+             to function displayRecipeArticles to display the article for save.
+        In function displayRecipe:
+            Add code to download the image in the <article> element (recipe card) to a temporary cache
+            Instead of removing elements (sticker, save button) from the <article> element, extract
+             the href, recipe name, author and preparation time from the article eleemnt and
+             download the recipe card image.
+            Create an articleDataObj object conprising the items extracted and the filepath of the
+             downloaded image to replace the <article> element HTML in the
+             NYTCooking.webContents.send('display-recipe') call.
+        In function authorSearch:
+            Empty the temporary image cache
+            Cater to the change in the HTML for the pagination count
+            Add code for an alternate method for determining the page count
+            Cater to the change in the HTML for the search results div
+        In function mainline:
+            In function createWindow:
+                Increase window width to 750
+            In ipcMain.handle('getLastDate'):
+                Cater to change in lastDate.txt contents: JSON.parse the stringified lastStoredDateObj
+                 object after reading from lastDate.txt and calculate to next date to process
+            Add ipcMain.on('write-HTML') and ipcMain.on('write-text') listeners:
+                Clipboard write functions are moved from the preload script to the index script
+            In app.on('will-quit'):
+                Cater to change in lastDate.txt contents: JSON.stringify lastStoredDateObj before
+                 writing to lastDate.txt
+            Add ipcMain.handle('save-article'):
+                Store the article HTML, recipes names and attributes in the NYTArticles database
+            Add code to connect to the NYTArticles database
+    
+    lib.js
+        In function recipeParse:
+            Add code to ignore <p> elements contained in divs whose id startsWith 'story-ad'
+    
+    NYTC-preload.js
+        Cater to the move of clipboard methods from preload to index.js:
+            Remove 'clipboard' from the modules required from 'electron'
+            Remove clipboardWriteHTML from contextBridge.exposeInMainWorld
+            Add 'write-HTML' to validChannels
+    
+    NYTCooking-renderer.js
+        Documentation updated
+        Global variable deletions and additions
+        In function displayRecipe:
+            Complete rewrite to:
+             - add recipes by adding input data items to a recipeCard template content clone, instead of
+                creating a recipeCard from input HTML
+             - compose the id of the recipeCard display div from the match type and the recipe index
+             - append the recipeCard template content clone to the div identified by the composed id
+        In function articleClick:
+            Cater to change in parent.dataset.url ?
+            Replace 'window.NYTC.clipboardWriteHTML' with "window.NYTC.send('write-HTML')
+        In function articleOpen:
+            Cater to change in parent.dataset.url ?
+        In function mainline:
+            In function function addRecipeDiv:
+                - Add recipe infrastructure by cloning the recipeResultsTemplate content,
+                    modifying div element IDs in the clone to include the recipe index and
+                    adding recipe data items to the clone
+            In function newRecipeDisplay:
+                - Change input to an array of arguments
+                - Replace the ______SectionIsNotInitialized arrays with an isPopulated object
+                    whose keys are the id of a recipe card display div
+                - Instead of creating collections of 'exact' <section> elements and collections of
+                    'fuzzy' <section> elements, create a collection of <div> elements that will be
+                    chosen for appending recipeCards in fuction displayRecipe by their id in
+                    function displayRecipe
+            Eliminate duplicate code around calling function newRecipeDisplay in mainline() and
+             window.NYTC.onSetName() by calling newRecipeDisplay with an array of arguments and logging
+             those arguments in newRecipeDisplay, instead of in mainline() and window.NYTC.onSetName()
+            In window.NYTC.onNoResults(arg):
+                - Add ' - ' between "No results" and 'arg' if 'arg' is present
+    
+    NYTCooking.html
+        Remove <link rel="stylesheet"> to href="NYTcore.min.css" and href="NYTstyles.css"
+        Add templates for recipe search results infrastructure (recipeResultsTemplate) and
+         for a recipe card (recipeCardTemplatecon)
+    
+    preload.js
+        Remove 'clipboard' from the modules required from 'electron'
+        In the contextBridge:
+            - Replace the getLastDate API with the getNextDate API and add the saveArticle API
+            - In the send API, add 'write-HTML' and 'write-text' as valid channels
+            - Add APIs onArticleSave and onEnableSaveButtons
+            - Delete APIs clipboardWriteHTML and clipboardWriteText
+    
+    renderer.js
+        Move functions elementClick, articleOpen and recipeSearch from window.electron.onArticleDisplay()
+         to make them global functions
+        Change functions elementClick and recipeSearch to send 'write-text/HTML', instead of calling
+         clipboardWriteText/HTML
+        Move function createArticleTitle from function displayArticle in window.electron.onArticleDisplay()
+         to make it a global function
+        Change function createArticleTitle arguments to add 'type', 'title' and 'url', instead of
+         referencing the function scope variables 'type' and 'article'
+        In window.electron.onProcessEnd(), enable save buttons, instead of search buttons
+        Add window.electron.onArticleSave() which adds an article and its discovered recipes to the
+         mainWindow.
+        In window.electron.onArticleDisplay():
+            - Functons elementClick, articleOpen, recipeSearch and createArticleTitle are moved.
+            - Calls to function createArticleTitle include arguments 'type', 'title' and 'url'
+            - In function createRecipeLists(), search buttons 'disabled' attribute is not set to 'true'.
+                This is not necessary because search buttons are now created in response to a dscrete
+                click on a Save button, rather than during an ongoing scan of articles.
+        Add window.electron.onEnableSaveButtons() to enable Save and View Artcle (class='disen')
+         buttons, called when the recipe search is completed.
+        In mainline():
+            Change references:
+                - getLastDate() -> getNextDate()
+                - lastDate -> nextDate

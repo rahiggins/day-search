@@ -1579,3 +1579,27 @@ Seq: 2264,   1999-10-31 Article: Food; Salem's Lot
 
 Seq: 2295,   1999-11-28 Article: FOOD; Soup Comes to the Rescue as a First Course Idea
     First recipe truncated because title contains 'From'
+
+Seq: 2301,   1999-12-05 Article: A New York Minute
+    Spurious recipe identified
+
+    Article contains a numbered list, so demarcation is instr.
+    Walk back encounters '3 Times Square' which is taken as an ingredient.
+    Next (previous) paragraph is taken as the recipe title.
+
+    Why is '3 Times Square' taken as an ingrdient?
+
+Seq: 2302,   1999-12-05 Article: Endpaper; A Top 10 List to Last
+    Spurious recipe identified
+
+    Article contains a numbered list, so demarcation is instr.
+    This paragraph is taken as an ingrdient:
+        9 Sarcastic catch phrase that defined our era: ''How's the cabbage?''
+    Subsequent paragraphs without terminal punct are taken as the recipe 
+    name.
+
+Seq: 2303,   1999-12-05 Article: Food; Good and Plenty
+    First recipe: Recipe name begins with spurious text
+
+    Paragraphs preceding the recipe name do not end with terminal punct
+    and so are prepended to the recipe name.
