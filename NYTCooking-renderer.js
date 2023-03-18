@@ -137,6 +137,42 @@ async function displayRecipe(args) {
     // Objectify argument stringifiedArticleDataObj
     let articleDataObj = JSON.parse(stringifiedArticleDataObj);
 
+    function tooltipMultiLine(recipeName) {
+        // Split a recipe name at spaces into multiple lines
+        //  for use as tooltip data. Each line should be 40 characters
+        //  or less.
+
+        lines = []; // Array of 40 characters or less lines
+
+        if (recipeName.length > 40) {
+            // If the recipe name is longer than 40 characters,
+            //  split it into lines
+            do {
+                // While the recipe name length is greater than 40,
+
+                // Find the last space character in the first 40 characters
+                let idx = recipeName.substring(0,41).lastIndexOf(' ');
+
+                // Append the substring up to the last space to the lines array
+                lines.push(recipeName.substring(0,idx));
+
+                // Set the recipe name to the remaining substring,
+                // exclusive of the leading space
+                recipeName = recipeName.substring(idx+1)
+
+                // Repeat until the remaining substring is less than 40 characters
+            } while (recipeName.length > 40)
+        }
+
+        // Append the recipe name (if less than 40 characters) or the last
+        //  line of the recipe name to the lines array
+        lines.push(recipeName)
+
+        // Return a string of the 40 characters or less lines separated
+        //  by newline characters
+        return lines.join('\n')
+    }
+
     // Form the ID of the <div> element in which the recipe card should be displayed
     targetDivID = 'recipe' + index.toString().padStart(2, '0') + matchType + 'Columns';
 
@@ -171,6 +207,7 @@ async function displayRecipe(args) {
 
     // Add recipe information to the cloned recipeCard
     recipeCardArt.dataset.url = 'https://cooking.nytimes.com' + articleDataObj.href
+    recipeCardArt.dataset.tooltip = tooltipMultiLine(articleDataObj.recipeName);
     recipeCardA.href = articleDataObj.href
     recipeCardH3.textContent = articleDataObj.recipeName;
     recipeCardByline.innerText = articleDataObj.author

@@ -96,11 +96,11 @@ Add function to search NYT Cooking for all of an article's recipes in one search
      AppStyles.css
         Add styles for recipeCard template.  These styles were copied from the NYTCooking search
         results display using Chrome developer tools
-    
+
     index.html
         Add a template for the article display for save elements
         Remove indent of article title display-for-search
-    
+
     index.js
         Add documentation of objects created
         Add requires for clipboard, https, mysql2/promise, dayjs, and dayjs/plugin/customParseFormat
@@ -141,17 +141,17 @@ Add function to search NYT Cooking for all of an article's recipes in one search
             Add ipcMain.handle('save-article'):
                 Store the article HTML, recipes names and attributes in the NYTArticles database
             Add code to connect to the NYTArticles database
-    
+
     lib.js
         In function recipeParse:
             Add code to ignore <p> elements contained in divs whose id startsWith 'story-ad'
-    
+
     NYTC-preload.js
         Cater to the move of clipboard methods from preload to index.js:
             Remove 'clipboard' from the modules required from 'electron'
             Remove clipboardWriteHTML from contextBridge.exposeInMainWorld
             Add 'write-HTML' to validChannels
-    
+
     NYTCooking-renderer.js
         Documentation updated
         Global variable deletions and additions
@@ -184,12 +184,12 @@ Add function to search NYT Cooking for all of an article's recipes in one search
              those arguments in newRecipeDisplay, instead of in mainline() and window.NYTC.onSetName()
             In window.NYTC.onNoResults(arg):
                 - Add ' - ' between "No results" and 'arg' if 'arg' is present
-    
+
     NYTCooking.html
         Remove <link rel="stylesheet"> to href="NYTcore.min.css" and href="NYTstyles.css"
         Add templates for recipe search results infrastructure (recipeResultsTemplate) and
          for a recipe card (recipeCardTemplatecon)
-    
+
     preload.js
         Remove 'clipboard' from the modules required from 'electron'
         In the contextBridge:
@@ -197,7 +197,7 @@ Add function to search NYT Cooking for all of an article's recipes in one search
             - In the send API, add 'write-HTML' and 'write-text' as valid channels
             - Add APIs onArticleSave and onEnableSaveButtons
             - Delete APIs clipboardWriteHTML and clipboardWriteText
-    
+
     renderer.js
         Move functions elementClick, articleOpen and recipeSearch from window.electron.onArticleDisplay()
          to make them global functions
@@ -222,3 +222,12 @@ Add function to search NYT Cooking for all of an article's recipes in one search
             Change references:
                 - getLastDate() -> getNextDate()
                 - lastDate -> nextDate
+
+3/17/2023
+
+    NYTCooking-renderer.js
+        Add tooltip to recipeCards - tooltip content is recipe name
+        split at spaces into <= 40 character lines
+
+    NYTCooking.html
+        Add tooltip class to recipeCards
