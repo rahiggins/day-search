@@ -1603,3 +1603,11 @@ Seq: 2303,   1999-12-05 Article: Food; Good and Plenty
 
     Paragraphs preceding the recipe name do not end with terminal punct
     and so are prepended to the recipe name.
+
+Seq: 2351 1998-01-18 Article: Mrs. Foo's Combination Plate
+    Erroneous hasUnquantifiedIngredient
+
+    Ingredient split between 2 <p> elements:
+        2 tablespoons peeled, finely
+        grated ginger
+

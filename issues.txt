@@ -91,6 +91,11 @@ In function processSectionOrKeywords:
   There seems to be a problem getting the complete section/keyword search results by clicking 'More'
    buttons. Waiting a quarter second for the search results number to change? 
 
+Sometimes, the section and keyword ssearches turn up the same article with 
+  different URLs. It's not desirable to store a duplicate article, but if 
+  the duplicate article is the last displayed article, not saving it means
+  lastDate.txt will not be saved.
+
 -----------------------------------------------------------
 getArticles issues:
 

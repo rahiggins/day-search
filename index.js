@@ -409,13 +409,13 @@ function getRandomInt() {
   // The number generated must be *gap* seconds or more from the previously returned number, which is
   //  contained in the global variable lastRandom
 
-  let min = 10000;
-  let max = 25000;
-  let gap = 8000
+  let min = 35000;
+  let max = 60000;
+  let gap = 10000
 
   let random;
 
-  // Find a millisecond delay 4 seconds or more from the last delay
+  // Find a millisecond delay *gap* seconds or more from the last delay
   do {
     random = Math.floor(Math.random() * (max - min) + min); // The maximum is exclusive and the minimum is inclusive
   } while (Math.abs(random - lastRandom) < gap)
@@ -883,6 +883,15 @@ async function processDate (dateToSearch) {
 
   Log("processDate entered with dateToSearch: " + dateToSearch);
 
+  async function pause(ms) {
+    // Pause processing
+    // Input: number of milliseconds
+    // Output: a Promise that resolves after ms milliseconds
+    return new Promise((resolve) => {
+      setTimeout(resolve, ms);
+    });
+  }
+
   // If the NYTCooking window ID is not null, close the existing NYTCooking window
   if (NYTCookingID !== null) {
     Log("Closing existing NYTCooking window")
@@ -942,6 +951,9 @@ async function processDate (dateToSearch) {
     // Form the search URL specifying the day and the keyword
     let url = `https://www.nytimes.com/search?dropmab=true&endDate=${urlDateToSearch}&query=${keywords[k]}&sort=best&startDate=${urlDateToSearch}`
 
+    // Wait a bit before processing each keyword to evade robot detection
+    await pause(Math.floor(Math.random() * (70000 - 50000) + 50000))
+        
     // Search the day's articles for the keyword
     searchDomain = "keyword " + keywords[k]
     Log("Searching " + searchDomain)
@@ -1157,12 +1169,28 @@ async function authorSearch (author, title, all) {
       // Download image from url to filepath
       // Input: image url
       //        path to download destination
+
+      // Directory containing cached recipe images from
+      //  https://cooking.nytimes.com/assets/recipe-generic/
+      let pngDir = "/Users/rahiggins/Pictures/NYT Recipe Images/"
+
       return new Promise((resolve, reject) => {
           https.get(url, (res) => {
               if (res.statusCode === 200) {
                   res.pipe(fs.createWriteStream(filepath))
                       .on('error', reject)
                       .once('close', () => resolve(filepath));
+              } else if (res.statusCode == 403) {
+                // If Forbidden, copy a cached version of the image
+
+                // Generic recipe images are named x.png, where 'x'
+                //  is 1 through 16.  Get this image name.
+                let srcPng = url.match(/\d{1,2}\.png/g)[0]
+
+                // Copy the image
+                fs.copyFileSync(pngDir + srcPng, filepath)
+                console.log("Image copied from NYT Recipe Images")
+                resolve(filepath);
               } else {
                   // Consume response data to free up memory
                   res.resume();
@@ -1686,6 +1714,7 @@ async function mainline () {
   ipcMain.handle('getNextDate', () => {
     let lastDateObjString;
     let lastDateObj;
+    let nextDate;
     try{
       lastDateObjString = fs.readFileSync(lastDateFile, "utf8");
       console.log("lastDateObjString: " + lastDateObjString)
@@ -1709,6 +1738,20 @@ async function mainline () {
       let today = new Date();
       lastStoredDate = today.getFullYear() + '-' + today.getMonth().toString().padStart(2, "0") + '-' + today.getDate().toString().padStart(2, "0")
       seq = 0
+    }
+
+    if (lastStoredDate.substring(0,4) != nextDate.substring(0,4)) {
+      let prevYear = (parseInt(lastStoredDate.substring(0,4)) - 1).toString()
+      let prevNewYear = dayjs(prevYear + '-01-01', 'YYYY-MM-DD')
+      let prevNewYearDay = dayjs(prevYear + '-01-01', 'YYYY-MM-DD').day()
+      if (prevNewYearDay == 0) {
+          firstDay = prevNewYear
+      } else if (prevNewYearDay <= 3) {
+          firstDay = prevNewYear.add(3 - prevNewYearDay, 'day')
+      } else {
+          firstDay = prevNewYear.add(7 - prevNewYearDay, 'day')
+      }
+      nextDate = firstDay.format("YYYY-MM-DD")
     }
     
     console.log("lastDateObj: " + lastDateObj)
@@ -1842,7 +1885,6 @@ async function mainline () {
 
   // On quitting:
   //  - Close Chrome tabs 
-  //  - Store the last date searched (if later that the last date stored)
   app.on('will-quit', function () {
     console.log("On will-quit:")
     try {
@@ -1854,20 +1896,7 @@ async function mainline () {
       //console.log("will-quit - NYTCookingPage error - " + e)
     }
     console.log(" closing dayPage")
-    dayPage.close()
-
-    // Update the last stored date and database sequence number.
-   if (dateToSearch > lastStoredDate || 
-     dateToSearch.substr(0,4) < lastStoredDate.substr(0,4)) {
-     console.log(" writing lastDateFile")
-     let lastStoredDateObj = {
-       lastStoredDate: dateToSearch,
-       seq: seq
-     }
-     let lastStoredDateObjString = JSON.stringify(lastStoredDateObj)
-     fs.writeFileSync(lastDateFile, lastStoredDateObjString, "utf8");
-   }
-   
+    dayPage.close()   
   })
 
       // Possible improvement on quitting.  Needs try...catch for all 
@@ -1991,6 +2020,24 @@ async function mainline () {
     try {
         await connection.query(sql)
         console.log("1 record inserted");
+  
+        // If the last article of the date being processed was just saved,
+        //  which is so when the article's sequence number matches the
+        //  global variable seq, update the last stored date and database
+        //  sequence number.
+        if (  articleInfo.seq == seq &&
+              ( dateToSearch > lastStoredDate || 
+                dateToSearch.substr(0,4) < lastStoredDate.substr(0,4) ) ) {
+          console.log(" writing lastDateFile")
+          let lastStoredDateObj = {
+            lastStoredDate: dateToSearch,
+            seq: seq
+          }
+          let lastStoredDateObjString = JSON.stringify(lastStoredDateObj)
+          console.log(lastStoredDateObjString)
+          fs.writeFileSync(lastDateFile, lastStoredDateObjString, "utf8");
+        }
+
     } catch(err) {
         console.log(err)
     }
