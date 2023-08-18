@@ -2,7 +2,9 @@
 /fonts
 /node_modules
 /package-lock.json
+/cachedImages
 articles-startObj.txt
+branch-plan.txt
 commit.txt
 curr-lib.js
 eslintrc.json

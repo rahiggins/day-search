@@ -25,8 +25,14 @@ contextBridge.exposeInMainWorld(
         onDisplaySpinner: (fn) => {
             ipcRenderer.on('display-spinner', (event, ...args) => fn(...args));
         },
+        onRemoveSpinner: (fn) => {
+            ipcRenderer.on('remove-spinner', (event, ...args) => fn(...args));
+        },
         onProgressBar: (fn) => {
             ipcRenderer.on('progress-bar', (event, ...args) => fn(...args));
+        },
+        onShowMsg: (fn) => {
+          ipcRenderer.on('show-msg', (event, ...args) => fn(...args));
         },
         onKeywordDiv: (fn) => {
           ipcRenderer.on('keyword-div', (event, ...args) => fn(...args));

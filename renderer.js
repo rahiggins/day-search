@@ -57,10 +57,12 @@ let startButton = document.getElementById('startButton');
 let dateForm = document.getElementById('dateForm');
 const resetButton = document.getElementById("resetButton")
 const mL = document.getElementById('msgs');     // messages list div
+const progDiv = document.getElementById('Pbar'); // progress bar div
 const aL = document.getElementById('aList');    // articles list div
 
 let debug = true;
 let expectedChanged = false;    // Expected recipes initially not changed
+let complete;                   // Value of lastStoredDateObj.complete
 
 // Article save template content
 let articleSaveContent = document.getElementById("article-save").content;
@@ -274,6 +276,13 @@ window.electron.onDisplaySpinner( () => {
     mL.appendChild(loading);
 })
 
+window.electron.onRemoveSpinner( () => {
+    // Remove the throbber
+    let spinner = document.getElementById("spinner");
+    spinner.remove();
+    remvAllMsg()
+})
+
 
 window.electron.onProgressBar( (args) => {
     // Add or update a progress bar showing the articles searched
@@ -281,7 +290,6 @@ window.electron.onProgressBar( (args) => {
     function addProgress(now,max) {
         // Input:   now - number of articles retrieved
         //          max - number of articles to be retrieved
-        //          searchDomain - 'x section' or 'x keyword' being searched
         // return a <progress> element
     
         Log("addProgress arguments: " + now.toString() + ", " + max.toString())
@@ -298,19 +306,19 @@ window.electron.onProgressBar( (args) => {
     Log(args)
     let curr = parseInt(args[0]);
     let max = parseInt(args[1]);
-    let searchDomain = args[2];
-    if (curr == 1) {
-        // First time, insert a progress bar
+    let firstTime = args[2];
 
-        // Create a float-left div
-        let progDiv = document.createElement("div");
-        progDiv.classList = "float-left";
-        progDiv.id = "Pbar"
+    // Probably no spinner in restructured version
+    // // Remove the spinner
+    // mL.removeChild(mL.lastChild);
+
+    if (firstTime) {
+        // First time, insert a progress bar
 
         // Create a "Examining n ... articles" <p> element
         let progPara = document.createElement("p");
         progPara.classList = "pr-2 pt-2 float-left m-0 Pbar";
-        let txt = "Examining " + args[1] + " " + searchDomain + " articles for recipes…";
+        let txt = "Examining " + args[1] + " articles for recipes…";
         let txnd = document.createTextNode(txt);
         progPara.appendChild(txnd);
 
@@ -318,33 +326,32 @@ window.electron.onProgressBar( (args) => {
         progDiv.appendChild(progPara);
         progDiv.appendChild(addProgress(curr,max));
 
-        // Remove the spinner
-        mL.removeChild(mL.lastChild);
-
-        // Add the float-left div containing the <progress> element to the messages div
-        mL.appendChild(progDiv);
-
     } else {
         // Subsequently, replace the <progress> element
 
-        let progDiv = document.getElementById('Pbar')
         progDiv.removeChild(progDiv.lastChild);       // Remove the <progress> element
         progDiv.appendChild(addProgress(curr,max));   // and add an updated one
     }
 })
 
+window.electron.onShowMsg( (msg, remove = true) => {
+    // Display a message
+    Log("show-msg received:");
+
+    // Remove previous messages, conditionally
+    if (remove) {
+        remvAllMsg()
+    }
+    
+    addMsg(mL, msg)
+
+})
+
 window.electron.onKeywordDiv( (arg) => {
-    // At the beginning of a keyword seach, add a divider identifying the keyword
+    // At the beginning of a keyword seach, add a message identifying the keyword
     Log("keyword-div received: " + arg);
 
-    // First, remove the existing progress bar, if it exists
-    try {
-        document.getElementById('Pbar').remove();
-    } catch {
-        mL.removeChild(mL.lastChild); 
-        Log("No progress-bar")
-    }
-    // Then, add the divider
+    // Add the divider
     let keywDiv = document.createElement("div");
     keywDiv.className = "keywDiv";
     let divDiv = document.createElement("div");
@@ -778,19 +785,17 @@ window.electron.onArticleSave( (arg) => {
 window.electron.onArticleDisplay( (args) => {
     // Display an article and its recipes
     // Input:   articleObj,
-    //          article recipes,
     //          article type
     //          (optional) expected results
     Log("onArticleDisplay entered");
 
-    function displayArticle(article, recipes, type, expectedRecipes) {
+    function displayArticle(artObj, type, expectedRecipes) {
         // Append the components of an article display to the browserWindow
         // - Article title {Search All}
         // - {Author}
         // - {small-font recipe name list}
         // - {Recipe name Search} (possibly repeated)
         // Input:   - articleObj
-        //          - array of recipe names
         //          - article type (e.g. Article, Tasting, cooking.nytimes.com, etc)
         //          - array of expected recipe names (optional, implies Validate)
         Log("function displayArticle entered")
@@ -909,7 +914,7 @@ window.electron.onArticleDisplay( (args) => {
                     //  and data-author attributes, and add a click event listener
                     let searchButton = recipeName.querySelector("button");
                     searchButton.dataset.title = recipes[i];
-                    searchButton.dataset.author = article.author;
+                    searchButton.dataset.author = artObj.author;
                     //searchButton.disabled = true;
                     searchButton.addEventListener("click", recipeSearch, false);
 
@@ -929,10 +934,10 @@ window.electron.onArticleDisplay( (args) => {
         //
     
         Log("Display article and recipes:");
-        Log("  title; " + article.title)
-        Log("  author: " + article.author)
-        Log("  href:" + article.link)
-        Log("article: " + JSON.stringify(article))
+        Log("  title; " + artObj.title)
+        Log("  author: " + artObj.author)
+        Log("  href:" + artObj.link)
+        Log("article: " + JSON.stringify(artObj))
     
         // Just to be clear, (expectedRecipes != null) => Validate button clicked
         if (expectedRecipes != null) {
@@ -940,7 +945,10 @@ window.electron.onArticleDisplay( (args) => {
         } else {
             validating = false
         }
-    
+
+        let recipes = [artObj.title]
+        let recipeList
+
         Log("Discovered recipes:")
         let numRecipes = recipes.length;
         for (let r = 0; r < numRecipes; r++) {
@@ -960,11 +968,11 @@ window.electron.onArticleDisplay( (args) => {
         //      components
         //  3) A Validate deviation - display small-font recipe lists,  both
         //      discovered and expected
-        if (article.link.includes("cooking.nytimes.com")) {
+        if (artObj.link.includes("cooking.nytimes.com")) {
             // For an NYT Cooking recipe ...
 
             // Create an article title component without a Search All button 
-            let [articleTitle] = createArticleTitle(articleTitleContent, type, article.title, article.link);
+            let [articleTitle] = createArticleTitle(articleTitleContent, type, artObj.title, artObj.link);
 
             // Add the article title component to the browser window
             aL.appendChild(articleTitle);
@@ -982,20 +990,20 @@ window.electron.onArticleDisplay( (args) => {
             }
     
             // Create an article title component
-            let [articleTitle, articleContainer] = createArticleTitle(content, type, article.title, article.link);
+            let [articleTitle, articleContainer] = createArticleTitle(content, type, artObj.title, artObj.link);
     
             if (numRecipes > 1) {
                 // If necessary, add info to the Search All button element
                 //  and add a click event listener
                 let searchAllButton = articleTitle.querySelector("button");
                 searchAllButton.dataset.title = JSON.stringify(recipes);
-                searchAllButton.dataset.author = article.author;
+                searchAllButton.dataset.author = artObj.author;
                 //searchAllButton.disabled = true;
                 searchAllButton.addEventListener("click", recipeSearch, false);
             }
 
             // Add the author name to the article title component
-            [articleTitle] = createAuthor(articleTitle, article.author);
+            [articleTitle] = createAuthor(articleTitle, artObj.author);
 
             // Add the article title component to the browser window
             aL.appendChild(articleTitle);
@@ -1012,7 +1020,7 @@ window.electron.onArticleDisplay( (args) => {
             // For Validate deviations ...
 
             // Create an article title component 
-            let [articleTitle, articleContainer] = createArticleTitle(articleTitleContent, type, article.title, article.link);
+            let [articleTitle, articleContainer] = createArticleTitle(articleTitleContent, type, artObj.title, artObj.link);
 
             // Append the article title component to the browser window
             aL.appendChild(articleTitle);
@@ -1038,13 +1046,13 @@ window.electron.onArticleDisplay( (args) => {
     }
 
     // Parse args
-    let [article, recipes, type, expectedRecipes] = args
+    let [articleObjString, type, expectedRecipes] = args
 
     // Convert article to array
-    article = JSON.parse(article);
+    let articleObj = JSON.parse(articleObjString);
 
     // Display the article and its recipes 
-    displayArticle( article, recipes, type, expectedRecipes );
+    displayArticle(articleObj, type, expectedRecipes);
 
 })
 
@@ -1155,25 +1163,42 @@ async function Mainline() {
 
     // Ask main process for the next date to search; set the input date picker 
     //  to that date
-    let nextDate = await window.electron.getNextDate();
+    let nextDateObjString = await window.electron.getNextDate();
+    let nextDateObj = JSON.parse(nextDateObjString)
+    let nextDate = nextDateObj.nextDate
+    complete = nextDateObj.complete
     Log("nextDate: " + nextDate);
     dateInput.value = nextDate;
 
-    // Validate input date: Sunday or Wednesday
-    if (valDate(nextDate) < 0) {
-        // Not valid, add class is-error to input element
-        dateInput.classList.add("is-error");
-    } else {
-        // Valid, remove class is-error from input element
-        dateInput.classList.remove("is-error");        
-    }
+    if (complete) {
 
-    // Listen for input event in the date picker
-    dateInput.addEventListener('input', validateDate);
-    dateInput.addEventListener('change', validateDate);
-    
-    // Listen for a click of the Start button, then call function processDate 
-    startButton.addEventListener('click', processDate)
+        // Validate input date: Sunday or Wednesday
+        if (valDate(nextDate) < 0) {
+            // Not valid, add class is-error to input element
+            dateInput.classList.add("is-error");
+        } else {
+            // Valid, remove class is-error from input element
+            dateInput.classList.remove("is-error");        
+        }
+        // Listen for input event in the date picker
+        dateInput.addEventListener('input', validateDate);
+        dateInput.addEventListener('change', validateDate);
+
+        // Listen for a click of the Start button, then call function processDate
+        startButton.addEventListener('click', processDate)
+
+    } else {
+
+        startButton.disabled = true;
+        dateInput.disabled = true;
+
+        // Get the selected date (yyyy-mm-dd)
+        let dateToSearch = dateInput.value;
+
+        // Send the date to process to the main process
+        window.electron.send('process-date', dateToSearch)
+
+    }
 
     async function processDate() {
         // Process a date
@@ -1183,7 +1208,7 @@ async function Mainline() {
         dateInput.disabled = true;
 
         // Show reset button
-        showReset();
+        //showReset();
 
         // Remove any previous messages
         remvAllMsg();

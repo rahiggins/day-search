@@ -1145,6 +1145,7 @@ function adjustTitle(title) {
   }
   // Return an articleObj
   return {
+    ID: 'articleObj',
     title: title,
     isBeverage: Beverage[0],
     isPairing: isPairing,

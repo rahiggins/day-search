@@ -95,8 +95,10 @@
       //  ~/Library/Application Support/day-search/testcase/solvedTestcases
 
       // The validate option uses testcase-lib.js, if it exists.
+//
 
-// INCORPORATE getARTICLE PROCESSING
+
+// INCORPORATE getArticle PROCESSING
 
 // This version replaces the TESTCASE and VALIDATE version updates with
 //  processing from the getArticle application.  To wit:
@@ -105,11 +107,46 @@
 //      the replay application.
 //
 //   - The option to validate /testcase instances is replaced by
-//      the validate application. 
+//      the validate application.
+
+
+//  RESTRUCTURE SEARCH
+
+// This version restructures the search for articles and article examination for
+//  recipes to allow the examination process to be interrupted and restarted from
+//  the point of interruption.
+//
+// In mid-2023, nytimes.com started blocking users it suspected of being robots. One
+//  criterion for being a robot is navigating between pages too quickly.  To avoid that,
+//  a delay is introduced bwfore each page navigation.  Nonetheless, this script is 
+//  likely to be blocked at some point while examining articles for recipes.
+//
+// To allow the restart of a date after being blocked, processing is restructured
+//  to perform all the section and keyword searches before examining any articles
+//  for recipes.  After the searches, before examining any articles, information
+//  about the unique articles returned by the searches is written to the
+//  application's user data folder.
+//
+// During the examination of articles for recipes, articles found to contain recipes are
+//  displayed in the mainWindow.  If the application is blocked, information about the
+//  displayed articles and the recipes found therein is written to the user data folder,
+//  along with the lastDate object.
+//
+// The lastDate object, which contains the last date processed and the last database sequence
+//  number assigned, is extended to include an indicator of incomplete processing and the
+//  index of the article that triggered the blocking.
+//
+// When the application is blocked during the processing of a date, the next time the
+//  application is started, the lastDate object indicates that the processing was
+//  incomplete.  The application restarts processing that date, restoring the articles
+//  previously displayed to the mainWindow and proceeding with the examination of 
+//  articles for recipes from the article that triggered the blocking.
+
 
 // Version single-search 0.1
 // Version validate 0.2
 // Version incorporate getArticle processing 0.3
+// Version restructure-search 0.1
 
 // Code structure:
 //
@@ -123,9 +160,9 @@
 //
 //   function processSectionOrKeywords
 //     function searchResultsNum
-//     function displayRecipeArticles
 //
 //  function processDate
+//     function displayRecipeArticles
 // 
 //  function authorSearch
 //    function replaceProblematics
@@ -176,11 +213,11 @@
 //    processDate
 //      calls processSectionOrKeywords
 //        calls searchResultsNum
-//        calls displayRecipeArticles
-//          calls adjustTitle
-//          calls getArticleClass
-//          calls getAuthor
-//          calls findRecipes
+//      calls displayRecipeArticles
+//        calls adjustTitle
+//        calls getArticleClass
+//        calls getAuthor
+//        calls findRecipes
 //    ipcMain.handle('save-article')
 //      calls bx
 //      issues connection.query(sql)
@@ -196,8 +233,17 @@
 
 // Data structures
 //
+// lastDateObj
+//  { 
+//    lastStoredDate: <string> YYYY-MM-DD
+//    seq: <number>
+//    complete: <boolean>
+//    lastArticle: <number>
+//  }
+//
 // articleObj
 //  {
+//    ID: <string>
 //    title: <string>
 //    isBeverage: <boolean>
 //    isPairing: <boolean>
@@ -205,10 +251,12 @@
 //    beverageType: <string>
 //    author: <string>
 //    link: <URL> 
+//    keyword: <string>
 //  }
 //
 // articleInfo
 //  {
+//    ID: <string>
 //    seq: <number>
 //    date: <string>
 //    name: <string>
@@ -218,6 +266,7 @@
 //    rawTitle: <string>
 //    title: <string>
 //    author: <string>
+//    keyword: <string>
 //    hasArticleClass: <boolean>
 //    hasTitlePunct: <boolean>
 //    hasFragmentedTitle: <boolean>
@@ -283,13 +332,12 @@ if ( fs.existsSync('./testcase-lib.js') ) {
 }
 const { getArticleClass, getAuthor, adjustTitle, findRecipes } = require(libName);
 
-// Get path to application data and set set paths to lastDate and testcase
-const appPath = app.getPath('appData') + "/" + app.name + '/';
-console.log("appPath: " + appPath)
-const lastDateFile = appPath + 'LastDate.txt';  // Last date processed
-
-// Folder of NYTCooking search results images
-const imagesDirectory = appPath.concat('images/')
+// Get path to application data and set paths to lastDate.txt and images
+const appDataPath = app.getPath('userData');
+console.log("appDataPath: " + appDataPath);
+const lastDateFile = path.join(appDataPath, 'LastDate.txt');  // Last date processed
+const imagesDirectory = path.join(appDataPath, 'images')  // Temp folder for recipe images
+const cachedImagesDir = path.join(__dirname, "cachedImages") // Cached generic recipe images
 
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
@@ -301,16 +349,33 @@ let dayPage;              // Day search page
 let NYTCookingID = null;  // NYT Cooking window ID
 let NYTCookingPage;       // NYT Cooking page
 let lastAuthor = null;    // Last author searched at NYT Cooking
-let lastStoredDate;       // Last date stored to ~user/Library/Application Support/day-search
+
+//                        // lastStoredDateObj values
+let lastStoredDate;       // Last date successfully processed (if complete == true)
+//                        //  or date to restart (if complete == false)
 let seq;                  // Article sequence number in the NYTarticles database
+let complete;             // <false> if all articles have not been parsed for recipes
+let lastArticle;          // Last element of foundArticlesArray successfully parsed
+
+let lastDateObj;
+let lastDateObjString;
+
 let dateToSearch;         // YYYY-MM-DD
 let debug = true;         // Used by Log function
 let articlePageIsOpen = false;  // true while an articlePage is open
 let htmlObj = new Object; // Article HTML needed in ipcMain.handle('save-article')
 
-let parsedArticles = [];    // Array of urls of articles parsed
-let parseSkipped;           // Count of articles previously parsed, so skipped
-let articlesDisplayed;      // Count of articles displayed
+let articleObj;               // Initial description of an article
+let articleUrlsFound = [];    // Array of unique article URLs found
+let articlesFoundArray = [];  // Array of objects describing articles found
+let articlesSkipped;          // Count of articles previously found and so skipped
+let articlesDisplayed;        // Count of articles displayed
+let displayedArticleInfoArray = []; // Array of articleInfo objects displayed in mainWindow
+let lastKeyword;
+let dateDir;
+let articlesFoundArrayFile;
+let displayedArticleInfoArrayFile;
+let htmlObjFile;
 
 let waitUntil = "networkidle2"  // puppeteer goto waitUntil value
 let lastRandom = 0          // Last value generated by function getRandomInt
@@ -403,15 +468,11 @@ async function login () {
   });
 }
 
-function getRandomInt() {
+function getRandomInt(min = 35000, max = 60000, gap = 10000) {
   // Generate a random number of milliseconds between *min* and *max* to be used as
   //  a delay before accessing nytimes.com pages to avoid being blocked as a robot.
   // The number generated must be *gap* seconds or more from the previously returned number, which is
   //  contained in the global variable lastRandom
-
-  let min = 35000;
-  let max = 60000;
-  let gap = 10000
 
   let random;
 
@@ -419,7 +480,7 @@ function getRandomInt() {
   do {
     random = Math.floor(Math.random() * (max - min) + min); // The maximum is exclusive and the minimum is inclusive
   } while (Math.abs(random - lastRandom) < gap)
-  console.log("Click delay: " + random.toString())
+  console.log("Click delay: " + random.toString() + " ms")
 
   // Set the found delay as the last delay and return it
   return lastRandom = random
@@ -448,12 +509,6 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
   //
   //        domainType - string: ( 'section' | 'keyword' )
 
-  // Access the functions in lib.js
-  //  - adjustTitle: Separate prefixes from the article title and use prefixes
-  //     to set article attributes
-  //  - findRecipes: parse the article's HTML to identify embedded recipes
-  //const { adjustTitle, findRecipes } = require('./lib.js')
-
   async function searchResultsNum() {
     // Return the number of results in the search page.  The search results are presented in an
     //  ordered list element.
@@ -468,121 +523,12 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
     return listItems.length;
   }
 
-  async function displayRecipeArticles(url, title, html) {
-    // Parse articles to identify recipes.  When recipes are identified,
-    //  display the article, its recipe names and its recipe attributes for
-    //  saving in the NYTarticles database.
-
-    // Input:
-    //  url   URL of the article
-    //  title title, adjusted by adjustTitle
-    //  html  the article's HTML
-
-    console.log('displayRecipeArticles entered with url: ' + url + ', title: ' + title)
-
-    // Define regex to match the part of a URL between the last '/' and
-    //  '.html'
-    let nameRX = new RegExp('((?:[^\\/](?!(\\|/)))+)\.html$')
-
-    // Create a Cheerio query function for the article page
-    let $ = cheerio.load(html)
-
-    // Get the article title and note whether it contains ':' or ';'
-    let header = $('header.e12qa4dv0');
-    let rawTitle = $('h1', header).text();
-    if (rawTitle.match(/[;:]/) != null) {
-        hasTitlePunct = true;
-    } else {
-        hasTitlePunct = false;
-    }
-
-    // Call adjustTitle to create an articleObj object
-    let articleObj = adjustTitle(rawTitle);
-
-    // Get the article class, if it exists
-    let [hasArticleClass, articleClass] = getArticleClass($);
-
-    // Add author to the articleObj
-    articleObj['author'] = getAuthor($);
-    console.log("Prior to findRecipes, author: " + articleObj.author);
-
-    // Call findRecipes to get recipes in the article
-    let [ , articleResults] = await findRecipes($, articleObj);    
-    //console.log('articleResults:')
-    //console.log(articleResults)
-
-    // For articles that have recipes, display the article
-    if (articleResults.hasRecipes) {
-
-      //let recipes = articleResults.recipes;
-      let numRecipes = articleResults.recipes.length;
-      Log("Number of recipes returned by findRecipes: " + numRecipes.toString())
-      for (let i = 0; i<numRecipes; i++) {
-          console.log(articleResults.recipes[i]);
-      }
-
-      if (numRecipes > 0) {
-        // Create an articleInfo object to send to the renderer process
-        //  for displaying the article
-        
-        // Increment database sequence number
-        seq++
-
-        // Create an object (articleInfo) containing information about and attributes of the article
-        //  to be passed to the renderer process 
-        articleInfo = {
-          seq: seq,
-          date: dateToSearch,
-          name: url.match(nameRX)[1],
-          URL: url,
-          articleClass: articleClass,
-          type: articleResults.type,
-          rawTitle: rawTitle,
-          title: articleObj.title,
-          author: articleObj.author,
-          hasArticleClass: hasArticleClass,
-          hasTitlePunct: hasTitlePunct,
-          hasFragmentedTitle: articleResults.hasFragmentedTitle,
-          hasUnquantifiedIngredient: articleResults.hasUnquantifiedIngredient,
-          recipes: articleResults.recipes.join('\n')
-        }
-
-        // Add articleHTML to htmlObj for use in ipcMain.handle('save-article')
-        htmlObj[seq.toString()] = html;
-        
-        // Adjust the window size according to the number of recipes to
-        //  to be displayed
-        // Get the current window size
-        let [w, h] = mainWindow.getSize();
-        // Shrink the window size if the current size is more that 450 px
-        //  and there are 4 or fewer recipes
-        if (h > 450 && numRecipes <= 4) {
-            mainWindow.setSize(900, 450);
-        }
-        // Expand the window size if there are more than 4 recipes
-        if (numRecipes > 4) {
-            mainWindow.setSize(900, 450+((numRecipes - 4) * 25), true)
-        }
-        
-        // Tell the renderer process to display the article and its associated
-        //  information
-        console.log("displayRecipeArticles - Displaying article, articleInfo:")
-        console.log(JSON.stringify(articleInfo))
-        mainWindow.webContents.send('article-save', JSON.stringify(articleInfo));
-      } else {
-        console.log("paradox: hasRecipes but numRecipes == 0")
-      }
-    }
-
-  }
-
   Log("processSectionOrKeywords entered with url: " + url + ", searchDomain: " + searchDomain);
 
   // First, make the dayPage tab active (bringToFront).
   await dayPage.bringToFront();
 
   // Go to the search results page
-  await dayPage.waitForTimeout(getRandomInt())
   await dayPage.goto(url, {waitUntil: waitUntil});
 
   // For section searches, see if the list of search results is empty (2/16/2000 - no 
@@ -630,30 +576,9 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
     }
 
     // Go to the Style section search results
-    await dayPage.waitForTimeout(getRandomInt())
+    await dayPage.waitForTimeout(getRandomInt(10000, 20000, 4000))
     await dayPage.goto(url, {waitUntil: waitUntil});
   }
-
-      // Unused -- the application connects to an existing instance of Chrome logged
-      //            into nytimes.com
-      // // If there's a 'Log In' link, log in
-      // try {
-      //   let logInButton = await dayPage.waitForSelector('[data-testid="login-link"]', {timeout: 250});
-      //   Log("Log In found")
-      // 
-      //   // Click the Log In link
-      //   await logInButton.click();
-      // 
-      //   // Go enter credentials
-      //   //await login();
-      // 
-      //   // Wait for navigation back to search results
-      //   await dayPage.waitForNavigation({waitUntil: 'networkidle0'})
-      // 
-      // 
-      // } catch {
-      //     Log("Log In not found");
-      // }
 
   //
   // The search page will display up to 10 articles, and if there are more
@@ -671,10 +596,6 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
   let currentSearchResultsNum = await searchResultsNum()
   Log("Initial search results: " + currentSearchResultsNum.toString())
 
-  // Tell the renderer process to display a spinner while expanding the 
-  //  search results
-  mainWindow.webContents.send('display-spinner');
-
   // Look for 'Show More' button and if found, click it 
   do {
       Log("Looking for Show More...")
@@ -691,8 +612,8 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
       // If button appears, click it...
       let button = await dayPage.$('[data-testid="search-show-more-button"]');
       Log("Pre-click Search Results: " + currentSearchResultsNum.toString())
+      await dayPage.waitForTimeout(getRandomInt(10000, 20000, 4000))
       Log("Clicking Show More button");
-      await dayPage.waitForTimeout(getRandomInt())
       await button.click()
 
       // ... then wait 250ms at a time until the number of search results changes
@@ -736,7 +657,7 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
   //   - a stand-alone recipe,
   //   or an ordinary article
 
-  // Define the array of article objects
+  // Define an array of article objects
   let articles = [];
   
   // For each search result article:
@@ -756,11 +677,11 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
     //  pairing, recipe, etc.  
     // Return:
     //  {title:, isBeverage:, isPairing:, isRecipe:, beverageType:}
-    let articleObj = adjustTitle(title);
+    articleObj = adjustTitle(title);
 
     // Add author and href to articleObj
-    articleObj['author'] = $('p.css-15w69y9',this).text().substr(3);
-    articleObj['link'] = href;
+    articleObj.author = $('p.css-15w69y9',this).text().substring(3);
+    articleObj.link = href;
 
     // Push articleObj onto the articles array
     articles.push(articleObj);
@@ -775,32 +696,367 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
   for (a = 0; a<articles.length; a++) {
 
     // Display progress bar showing progress through this loop
-    mainWindow.webContents.send('progress-bar', [a+1, articlesNum, searchDomain]);
+    //mainWindow.webContents.send('progress-bar', [a+1, articlesNum, searchDomain]);
 
-    if (parsedArticles.includes(articles[a].link)) {
-      // If this article's url is in the array of articles already parsed,
-      //  skip parsing it again.
-      parseSkipped++; // Count skipped articles
+    if (articleUrlsFound.includes(articles[a].link)) {
+      // If this article's url is in the array of articles already found,
+      //  skip it.
+      articlesSkipped++; // Count skipped articles
       continue;
     } else {
-      // If not, add this article's url to the array of articles already parsed
-      parsedArticles.push(articles[a].link)
+      // If not, add this article's url to the array of articles already found
+      articleUrlsFound.push(articles[a].link);
+
+      // Add the search domain to this articleObj
+      articles[a]['keyword'] = domainType == 'keyword' ? searchDomain.split(' ')[1] : '' ;
+
+      // Add this articleObj to the articles found array
+      articlesFoundArray.push( articles[a] )
+    }
+  }
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+async function processDate (dateToSearch) {
+  // Search a date (Sunday: Magazine section or Wednesday: Food Section)
+  //  for articles. Then search the day for certain keywords.
+
+  // Called from ipcMain.on('process-date')
+
+  // Input: date, <string> 'YYYY-MM-DD'
+
+  // Calls: processSectionOrKeywords
+  //        displayRecipeArticles
+
+  Log("processDate entered with dateToSearch: " + dateToSearch);
+  
+  async function pause(ms) {
+    // Pause processing
+    // Input: number of milliseconds
+    // Output: a Promise that resolves after ms milliseconds
+    return new Promise((resolve) => {
+      setTimeout(resolve, ms);
+    });
+  }
+
+  async function displayRecipeArticles(artObj, html) {
+    // Parse articles to identify recipes.  When recipes are identified,
+    //  display the article, its recipe names and its recipe attributes for
+    //  saving in the NYTarticles database.
+
+    // Input:
+    //  artObj  articleObj
+    //  html    the article's HTML
+   
+    console.log('displayRecipeArticles entered with url: ' + artObj.link + ', title: ' + artObj.title)
+
+    // Define regex to match the part of a URL between the last '/' and
+    //  '.html'
+    let nameRX = new RegExp('((?:[^\\/](?!(\\|/)))+)\.html$')
+
+    // Create a Cheerio query function for the article page
+    let $ = cheerio.load(html)
+
+    // Get the article title and note whether it contains ':' or ';'
+    let header = $('header.e12qa4dv0');
+    let rawTitle = $('h1', header).text();
+    if (rawTitle.match(/[;:]/) != null) {
+        hasTitlePunct = true;
+    } else {
+        hasTitlePunct = false;
     }
 
-    Log("Go to article " + articles[a].link)
-    Log("Title: " + articles[a].title)
-    Log("Author: " + articles[a].author)
-    Log("isBeverage: " + articles[a].isBeverage)
-    Log("isRecipe: " + articles[a].isRecipe)
-    Log("beverageType: " + articles[a].beverageType)
+    //  // Call adjustTitle to create an articleObj object
+    //  let articleObj = adjustTitle(rawTitle);
+    //  
+    // Get the article class, if it exists
+    let [hasArticleClass, articleClass] = getArticleClass($);
+    //  
+    //  // Add author to the articleObj
+    //  articleObj['author'] = getAuthor($);
+    console.log("Prior to findRecipes, author: " + artObj.author);
+
+    // Call findRecipes to get recipes in the article
+    let [ , articleResults] = await findRecipes($, artObj); 
+
+    // For articles that have recipes, display the article
+    if (articleResults.hasRecipes) {
+
+      //let recipes = articleResults.recipes;
+      let numRecipes = articleResults.recipes.length;
+      Log("Number of recipes returned by findRecipes: " + numRecipes.toString())
+      for (let i = 0; i<numRecipes; i++) {
+          console.log(articleResults.recipes[i]);
+      }
+
+      if (numRecipes > 0) {
+        // Create an articleInfo object to send to the renderer process
+        //  for displaying the article
+        
+        // Increment database sequence number
+        seq++
+
+        // Create an object (articleInfo) containing information about and attributes of the article
+        //  to be passed to the renderer process 
+        articleInfo = {
+          ID: 'articleInfo',
+          seq: seq,
+          date: dateToSearch,
+          name: artObj.link.match(nameRX)[1],
+          URL: artObj.link,
+          articleClass: articleClass,
+          type: articleResults.type,
+          rawTitle: rawTitle,
+          title: artObj.title,
+          author: artObj.author,
+          keyword: artObj.keyword,
+          hasArticleClass: hasArticleClass,
+          hasTitlePunct: hasTitlePunct,
+          hasFragmentedTitle: articleResults.hasFragmentedTitle,
+          hasUnquantifiedIngredient: articleResults.hasUnquantifiedIngredient,
+          recipes: articleResults.recipes.join('\n')
+        }
+
+        // Add articleHTML to htmlObj for use in ipcMain.handle('save-article')
+        htmlObj[seq.toString()] = html;
+        
+        // Adjust the window size according to the number of recipes to
+        //  to be displayed
+        // Get the current window size
+        let [w, h] = mainWindow.getSize();
+        // Shrink the window size if the current size is more that 450 px
+        //  and there are 4 or fewer recipes
+        if (h > 450 && numRecipes <= 4) {
+            mainWindow.setSize(900, 450);
+        }
+        // Expand the window size if there are more than 4 recipes
+        if (numRecipes > 4) {
+            mainWindow.setSize(900, 450+((numRecipes - 4) * 25), true)
+        }
+        
+        // Tell the renderer process to display the article and its associated
+        //  information
+        console.log("displayRecipeArticles - Displaying article, articleInfo:")
+        console.log(JSON.stringify(articleInfo))
+        mainWindow.webContents.send('article-save', JSON.stringify(articleInfo));
+        
+        // Add the articleInfo object to the displayed article array, used for restart
+        displayedArticleInfoArray.push(articleInfo);
+
+      } else {
+        console.log("paradox: hasRecipes but numRecipes == 0")
+      }
+    }
+
+  }
+
+  // If the NYTCooking window ID is not null, close the existing NYTCooking window
+  if (NYTCookingID !== null) {
+    Log("Closing existing NYTCooking window")
+    BrowserWindow.fromId(NYTCookingID).close();
+    NYTCookingID = null;
+    await NYTCookingPage.close();
+  }
+
+  // Path to this date's folder in the Application Support folder.  Objects
+  //  related to the processing of this date will be written here.
+  dateDir = path.join(appDataPath, dateToSearch);
+
+  // Define paths to files used to restart article processing
+  articlesFoundArrayFile = path.join(dateDir, "articlesFoundArray.txt");
+  displayedArticleInfoArrayFile = path.join(dateDir, "displayedArticleInfoArray.txt");
+  htmlObjFile = path.join(dateDir, "htmlObj.txt");
+
+  let articlesFoundArrayString; // Stringified array of foundArticleObj objects
+
+  if (complete) {
+    // The previous date was completed, so start processing a new date
+    //  by collecting all the articles in the target section and the
+    //  articles found by searching for keywords.
+
+    // Initialize array of urls of articles found, which is used to skip processing
+    //  articles already found, and the count of articles displayed and articles skipped
+    articleUrlsFound = [];
+    articlesDisplayed = 0;
+    articlesSkipped = 0;
+  
+    // Empty the htmlObj object
+    htmlObj = {}
+  
+    //
+    // Form the article search URL for the day's section that usually has recipes:
+    //  Sunday: Magazine
+    //  Wednesday: Food
+    //
+  
+    // Remove hyphens from dateToSearch for use in URL
+    let urlDateToSearch = dateToSearch.replace(/-/g, '');
+  
+    // Get day of week (0-6) of selected date
+    let dateToSearchObj = new Date(dateToSearch); // dateToSearchObj is UTC ...
+    let dayOfWeek = dateToSearchObj.getUTCDay();  // ... so must use getUTCDay()
+  
+    // Get search URL for the selected day
+    let dayURL;
+    if (dayOfWeek == 0) {
+        // Sunday URL
+        dayURL = `https://www.nytimes.com/search?dropmab=true&endDate=${urlDateToSearch}&query=&sections=Magazine%7Cnyt%3A%2F%2Fsection%2Fa913d1fb-3cdf-556b-9a81-f0b996a1a202&sort=best&startDate=${urlDateToSearch}`
+        searchDomain = "Magazine section"
+    } else {
+        // Wednesday URL
+        dayURL = `https://www.nytimes.com/search?dropmab=true&endDate=${urlDateToSearch}&query=&sections=Food%7Cnyt%3A%2F%2Fsection%2F4f379b11-446b-57ae-8e2a-0cff12e0f26e&sort=best&startDate=${urlDateToSearch}`
+        searchDomain = "Food section"
+    }
+  
+    // Search the day's recipe section for articles containing embedded recipes
+    Log("Searching " + searchDomain)
+  
+    // Tell the renderer process to display a spinner while expanding the 
+    //  search results
+    mainWindow.webContents.send('display-spinner');
+  
+    await processSectionOrKeywords(dayURL, dayOfWeek, searchDomain, 'section');
+  
+    mainWindow.webContents.send('remove-spinner');
+  
+    // 
+    // Search all the day's articles for articles containing these keywords:
+    let keywords = ["cooking.nytimes.com", "Tablespoon", "Shaken", "Recipe", "Yield:"];
+  
+    for (let k = 0; k < keywords.length; k++) {
+      // For each keyword,
+    
+    
+      // Form the search URL specifying the day and the keyword
+      let url = `https://www.nytimes.com/search?dropmab=true&endDate=${urlDateToSearch}&query=${keywords[k]}&sort=best&startDate=${urlDateToSearch}`
+    
+      // Wait a bit before processing each keyword to evade robot detection
+      await pause(Math.floor(Math.random() * (10000 - 5000) + 5000))
+    
+      // Display a 'Searching ...' message for the keyword and a spinner
+      mainWindow.webContents.send('show-msg', "Searching for keyword " + keywords[k])
+      mainWindow.webContents.send('display-spinner');
+    
+          
+      // Search the day's articles for the keyword
+      searchDomain = "keyword " + keywords[k]
+      Log("Searching " + searchDomain)
+      await processSectionOrKeywords(url, dayOfWeek, searchDomain, 'keyword');
+      if (keywords[k] == 'cooking.nytimes.com') {
+        console.log("done with keyword cooking.nytimes.com")
+      }
+    
+      // Remove the spinner
+      mainWindow.webContents.send('remove-spinner');
+    
+    }
+  
+    // Initialize last keyword encountered
+    lastKeyword = '';
+
+    console.log("end of processDate");
+    Log("Articles found: " + articlesFoundArray.length.toString());
+    Log("Articles skipped: " + articlesSkipped.toString());
+
+    // Store the array of found articles in this date's folder.
+
+    if (fs.existsSync(dateDir)) {
+      // If the date's folder already exists, delete it and its contents
+      fs.rmSync( dateDir, { force: true, recursive: true } )
+    }
+
+    // Create the date's folder
+    fs.mkdirSync(dateDir);
+
+    // Write the stringified array of found articles to this date's folder
+    articlesFoundArrayString = JSON.stringify(articlesFoundArray)
+    fs.writeFileSync(articlesFoundArrayFile, articlesFoundArrayString, "utf8");
+
+  } else {
+    // A previous processing of this date did not complete. Restart processing
+    //  of the date where the previous attempt left off.
+
+    console.log("Restarting " + dateToSearch + " at article number " + lastArticle.toString())
+    mainWindow.webContents.send('restart-msg');
+
+    // Restore the array of found articles from the Application Support folder.
+    articlesFoundArrayString = fs.readFileSync(articlesFoundArrayFile, "utf8");
+    articlesFoundArray = JSON.parse(articlesFoundArrayString);
+
+    // Restore the array of displayed articleInfo objects from the Application Support folder.
+    displayedArticleInfoArrayString = fs.readFileSync(displayedArticleInfoArrayFile, "utf8");
+    displayedArticleInfoArray = JSON.parse(displayedArticleInfoArrayString);
+
+    // Restore the HTML object from the Application Support folder.
+    htmlObjString = fs.readFileSync(htmlObjFile, "utf8");
+    htmlObj = JSON.parse(htmlObjString);
+
+    // Redisplay previously displayed articles
+    lastKeyword = ''
+    for (i = 0; i < displayedArticleInfoArray.length; i++) {
+
+    // If the keyword that yielded this article has changed from the last one,
+    //  tell the renderer process to display a keyword divider 
+      if (displayedArticleInfoArray[i].keyword != lastKeyword) {
+        lastKeyword = displayedArticleInfoArray[i].keyword;
+        mainWindow.webContents.send('keyword-div', lastKeyword);  // Display divider
+      }
+
+      switch (displayedArticleInfoArray[i].ID) {
+        case 'articleInfo':
+          // Send articleInfo object for an article    
+          mainWindow.webContents.send('article-save', JSON.stringify(displayedArticleInfoArray[i]));
+        case 'articleObj':
+          // Send articleObj for an NYT Cooking recipe
+          mainWindow.webContents.send('article-display', [JSON.stringify(displayedArticleInfoArray[i]), "NYT Cooking"])
+      }
+    }
+
+  }
+
+  let firstTime = true;
+  for ( a = lastArticle; a < articlesFoundArray.length; a++ ) {
+
+    // Display progress bar showing progress through this loop
+    mainWindow.webContents.send('progress-bar', [a+1, articlesFoundArray.length, firstTime]);
+    if (firstTime) {
+      firstTime = false;
+    }
 
 
-    if (articles[a].link.includes("cooking.nytimes.com")) {
+    Log("Go to article " + articlesFoundArray[a].link)
+    Log("Title: " + articlesFoundArray[a].title)
+    Log("Author: " + articlesFoundArray[a].author)
+    Log("isBeverage: " + articlesFoundArray[a].isBeverage)
+    Log("isRecipe: " + articlesFoundArray[a].isRecipe)
+    Log("beverageType: " + articlesFoundArray[a].beverageType)
+    Log("Keyword: " + articlesFoundArray[a].keyword)
+
+    // If the keyword that yielded this article has changed from the last one,
+    //  tell the renderer process to display a keyword divider 
+    if (articlesFoundArray[a].keyword != lastKeyword) {
+      lastKeyword = articlesFoundArray[a].keyword; // Update last keyword
+      mainWindow.webContents.send('keyword-div', lastKeyword);  // Display divider
+    }
+
+    if (articlesFoundArray[a].link.includes("cooking.nytimes.com")) {
       // If this article is an NYT Cooking recipe, just display it without
       //  parsing it for recipes
-      Log("Display NYT Cooking recipe: " + articles[a].title);
+      Log("Display NYT Cooking recipe: " + articlesFoundArray[a].title);
       articlesDisplayed++;
-      mainWindow.webContents.send('article-display', [JSON.stringify(articles[a]), [articles[a].title], "NYT Cooking"])
+      mainWindow.webContents.send('article-display', [JSON.stringify(articlesFoundArray[a]), "NYT Cooking"])
+      // Add the NYT Cooking recipe's articleObj to the displayed article array, 
+      //  used for restart
+      displayedArticleInfoArray.push(articlesFoundArray[a]);
     } else {
       // Otherwise, create a new browser page and go to the article to parse it
       articlePage = await browser.newPage();
@@ -815,10 +1071,10 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
       //  the button was clicked, indicating that the captcha was solved.
       //  Repeat the goto article page.
       // Go to an article page
-      Log("Go to: " + articles[a].link);
+      Log("Go to: " + articlesFoundArray[a].link);
       await articlePage.waitForTimeout(getRandomInt())
-      await articlePage.goto(articles[a].link, {waitUntil: waitUntil});
-      Log("Back from: " + articles[a].link);
+      await articlePage.goto(articlesFoundArray[a].link, {waitUntil: waitUntil});
+      Log("Back from: " + articlesFoundArray[a].link);
 
       // Get the article page's HTML and create a Cheerio query function for the HTML
       let articleHTML = await articlePage.content();
@@ -835,6 +1091,48 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
         // Tell the renderer process to display a 'captcha detected' message.
         mainWindow.webContents.send('captcha-detected')
 
+        // See if it's a transient problem
+        let ps = await articlePage.$$('p');
+        console.log("Number of <p> elements: " + ps.length.toString())
+        let isBlocked = true; // Assume it's not transient
+        for (i=0; i<ps.length; i++) {
+          let pt = await ps[i].evaluate( p => p.textContent)
+          console.log('<p> starts with: ' + pt.substring(0, 20))
+          if (pt.startsWith("We're sorry, we seem")) {
+            isBlocked = false; // Yes it is transient
+            break;
+          }
+        }
+
+        if (isBlocked) {
+          // If the application is blocked, save the progress thus far and then
+          //  terminate.
+
+          // Display 'Blocked'
+          mainWindow.webContents.send('show-msg', 'Blocked by nytimes.com', false)
+
+          // Save the lastDateObj for restarting the search
+          lastDateObj.lastStoredDate = dateToSearch;
+          lastDateObj.seq = seq;
+          lastDateObj.complete = false;
+          lastDateObj.lastArticle = a;  // Restart at this article
+
+          lastDateObjString = JSON.stringify(lastDateObj)
+          console.log(lastDateObjString)
+          fs.writeFileSync(lastDateFile, lastDateObjString, "utf8");
+
+          // Save the array of displayed articleInfo objects for restarting
+          displayedArticleInfoArrayString = JSON.stringify(displayedArticleInfoArray);
+          fs.writeFileSync(displayedArticleInfoArrayFile, displayedArticleInfoArrayString, "utf8");
+
+          // Save the HTML object for restarting
+          htmlObjString = JSON.stringify(htmlObj);
+          fs.writeFileSync(htmlObjFile, htmlObjString, "utf8");
+
+          throw "Blocked by nytimes.com, terminating"
+        }
+
+        // It it's a transient problem, wait for page navigation and then continue
         console.log("Waiting for navigation")
         await articlePage.waitForNavigation()
         console.log("Navigation ocurred")
@@ -850,130 +1148,24 @@ async function processSectionOrKeywords(url, dayOfWeek, searchDomain, domainType
       }
 
       // Go parse the article for recipes and display articles that contain recipes
-      displayRecipeArticles(articles[a].link, articles[a].title, articleHTML);
+      displayRecipeArticles(articlesFoundArray[a], articleHTML);
 
       // Close the article browser page
       await articlePage.close();
       articlePageIsOpen = false;
 
     }
+
   }
 
-}
-
-
-//////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////
-
-
-
-
-async function processDate (dateToSearch) {
-  // Search a date (Sunday: Magazine section or Wednesday: Food Section)
-  //  for articles containing recipes. Then search the day for certain keywords.
-
-  // Called from ipcMain.on('process-date')
-
-  // Input: date, <string> 'YYYY-MM-DD'
-
-  // Calls: processSectionOrKeywords
-
-  Log("processDate entered with dateToSearch: " + dateToSearch);
-
-  async function pause(ms) {
-    // Pause processing
-    // Input: number of milliseconds
-    // Output: a Promise that resolves after ms milliseconds
-    return new Promise((resolve) => {
-      setTimeout(resolve, ms);
-    });
-  }
-
-  // If the NYTCooking window ID is not null, close the existing NYTCooking window
-  if (NYTCookingID !== null) {
-    Log("Closing existing NYTCooking window")
-    BrowserWindow.fromId(NYTCookingID).close();
-    NYTCookingID = null;
-    await NYTCookingPage.close();
-  }
-
-  // Initialize array of urls of articles parsed, which is used to skip parsing
-  //  articles already parsed, and the count of articles displayed and parses skipped
-  parsedArticles = [];
-  articlesDisplayed = 0;
-  parseSkipped = 0;
-
-  // Empty the htmlObj object
-  htmlObj = {}
-
-  //
-  // Form the article search URL for the day's section that usually has recipes:
-  //  Sunday: Magazine
-  //  Wednesday: Food
-  //
-
-  // Remove hyphens from dateToSearch for use in URL
-  let urlDateToSearch = dateToSearch.replace(/-/g, '');
-
-  // Get day of week (0-6) of selected date
-  let dateToSearchObj = new Date(dateToSearch); // dateToSearchObj is UTC ...
-  let dayOfWeek = dateToSearchObj.getUTCDay();  // ... so must use getUTCDay()
-
-  // Get search URL for the selected day
-  let dayURL;
-  if (dayOfWeek == 0) {
-      // Sunday URL
-      dayURL = `https://www.nytimes.com/search?dropmab=true&endDate=${urlDateToSearch}&query=&sections=Magazine%7Cnyt%3A%2F%2Fsection%2Fa913d1fb-3cdf-556b-9a81-f0b996a1a202&sort=best&startDate=${urlDateToSearch}`
-      searchDomain = "Magazine section"
-  } else {
-      // Wednesday URL
-      dayURL = `https://www.nytimes.com/search?dropmab=true&endDate=${urlDateToSearch}&query=&sections=Food%7Cnyt%3A%2F%2Fsection%2F4f379b11-446b-57ae-8e2a-0cff12e0f26e&sort=best&startDate=${urlDateToSearch}`
-      searchDomain = "Food section"
-  }
-
-  // Search the day's recipe section for articles containing embedded recipes
-  Log("Searching " + searchDomain)
-  await processSectionOrKeywords(dayURL, dayOfWeek, searchDomain, 'section');
-
-  // 
-  // Search all the day's articles for articles containing these keywords:
-  let keywords = ["cooking.nytimes.com", "Tablespoon", "Shaken", "Recipe", "Yield:"];
-
-  for (let k = 0; k < keywords.length; k++) {
-    // For each keyword,
-
-    // Display a horizontal divider for the keyword
-    mainWindow.webContents.send('keyword-div', keywords[k])
-
-    // Form the search URL specifying the day and the keyword
-    let url = `https://www.nytimes.com/search?dropmab=true&endDate=${urlDateToSearch}&query=${keywords[k]}&sort=best&startDate=${urlDateToSearch}`
-
-    // Wait a bit before processing each keyword to evade robot detection
-    await pause(Math.floor(Math.random() * (70000 - 50000) + 50000))
-        
-    // Search the day's articles for the keyword
-    searchDomain = "keyword " + keywords[k]
-    Log("Searching " + searchDomain)
-    await processSectionOrKeywords(url, dayOfWeek, searchDomain, 'keyword');
-    if (keywords[k] == 'cooking.nytimes.com') {
-      console.log("done with keyword cooking.nytimes.com")
-    }
-  }
-
-
-  console.log("end of processDate");
-  Log("Articles displayed: " + articlesDisplayed.toString());
-  Log("Parse skipped: " + parseSkipped.toString());
+  console.log("Articles displayed: " + articlesFoundArray.toString())
 
   // Show and focus on the main browser window
   mainWindow.show();
-
+  
   // Allow the user to bring other windows to the top
   mainWindow.setAlwaysOnTop(false);
-
+  
   // Tell the renderer process to remove the progress bar and to enable buttons
   mainWindow.webContents.send('process-end')
   console.log("mainWindow is AlwaysOnTop: " +  mainWindow.isAlwaysOnTop())
@@ -1170,10 +1362,6 @@ async function authorSearch (author, title, all) {
       // Input: image url
       //        path to download destination
 
-      // Directory containing cached recipe images from
-      //  https://cooking.nytimes.com/assets/recipe-generic/
-      let pngDir = "/Users/rahiggins/Pictures/NYT Recipe Images/"
-
       return new Promise((resolve, reject) => {
           https.get(url, (res) => {
               if (res.statusCode === 200) {
@@ -1188,7 +1376,7 @@ async function authorSearch (author, title, all) {
                 let srcPng = url.match(/\d{1,2}\.png/g)[0]
 
                 // Copy the image
-                fs.copyFileSync(pngDir + srcPng, filepath)
+                fs.copyFileSync(path.join(cachedImagesDir, srcPng), filepath)
                 console.log("Image copied from NYT Recipe Images")
                 resolve(filepath);
               } else {
@@ -1214,8 +1402,14 @@ async function authorSearch (author, title, all) {
     let href = $('a').attr('href');
     let recipeName = $('h3').text();
     let ps = $('p');
-    let author = $(ps[0]).text();
-    let time = $(ps[1]).text();
+    // Author is in a <p> w/class that starts with 'recipecard_byline'
+    let author = $(ps).filter(function (i, el) {
+      return $(this).attr('class').includes('recipecard_byline');
+    }).text()
+    // Time is in a <p> w/class that starts with 'recipecard_cookTime'
+    let time = $(ps).filter(function (i, el) {
+      return $(this).attr('class').includes('recipecard_cookTime');
+    }).text()
 
     console.log("article href: " + href)
     console.log("h3 text (recipe name): " + recipeName);
@@ -1244,7 +1438,7 @@ async function authorSearch (author, title, all) {
     //  Save it in the images folder in the application's <Application Support> directory
     let imgExt = src.match(/^.*(.png|.jpg).*$/);        // Image file extension
     let dlImgName = imageCounter.toString() + imgExt[1];   // Image file name
-    let dlImgPath = imagesDirectory + dlImgName;        // Image file path
+    let dlImgPath = path.join(imagesDirectory, dlImgName);    // Image file path
 
     Log("Downloading to " +  dlImgPath + " ...")
     // Call downloadImage function (above) to download the recipe's image
@@ -1395,7 +1589,7 @@ async function authorSearch (author, title, all) {
   } else {
     cookingSearchPage = `https://cooking.nytimes.com/search?q=${encodeURIComponent(title)}`;
   }
-  await NYTCookingPage.waitForTimeout(getRandomInt())
+  // await NYTCookingPage.waitForTimeout(getRandomInt()) // Remove or specify shorter time?
   await NYTCookingPage.goto(cookingSearchPage, {waitUntil: waitUntil});
 
   // Initialize downloaded image name counter
@@ -1589,7 +1783,7 @@ async function authorSearch (author, title, all) {
       console.log("Going to search result page " + processingPageString)
       let nxt = '&page=' + processingPageString;
       try {
-          await NYTCookingPage.waitForTimeout(getRandomInt())
+          await NYTCookingPage.waitForTimeout(getRandomInt(10000, 20000, 4000));
           gotoResponse = await NYTCookingPage.goto(cookingSearchPage + nxt, {waitUntil: waitUntil});
       } catch (e) {
           console.error("page.goto error:");
@@ -1712,15 +1906,16 @@ async function mainline () {
 
   // Return next date to search to renderer process
   ipcMain.handle('getNextDate', () => {
-    let lastDateObjString;
-    let lastDateObj;
+    console.log("getNextDate handler entered");
     let nextDate;
     try{
       lastDateObjString = fs.readFileSync(lastDateFile, "utf8");
-      console.log("lastDateObjString: " + lastDateObjString)
-      lastDateObj = JSON.parse(lastDateObjString)
-      lastStoredDate = lastDateObj.lastStoredDate
-      seq = lastDateObj.seq
+      console.log("lastDateObjString: " + lastDateObjString);
+      lastDateObj = JSON.parse(lastDateObjString);
+      lastStoredDate = lastDateObj.lastStoredDate;
+      seq = lastDateObj.seq;
+      complete = lastDateObj.complete;
+      lastArticle = lastDateObj.lastArticle
 
       // From lastStoredDate, get nextDate to process
       let lastDate = dayjs(lastStoredDate, "YYYY-MM-DD")
@@ -1736,28 +1931,39 @@ async function mainline () {
       console.log("lastDateFile error")
       console.log(e)
       let today = new Date();
-      lastStoredDate = today.getFullYear() + '-' + today.getMonth().toString().padStart(2, "0") + '-' + today.getDate().toString().padStart(2, "0")
-      seq = 0
+      lastStoredDate = today.getFullYear() + '-' + today.getMonth().toString().padStart(2, "0") + '-' + today.getDate().toString().padStart(2, "0");
+      seq = 0;
+      complete = true;
+      lastArticle = 0;
     }
 
-    if (lastStoredDate.substring(0,4) != nextDate.substring(0,4)) {
-      let prevYear = (parseInt(lastStoredDate.substring(0,4)) - 1).toString()
-      let prevNewYear = dayjs(prevYear + '-01-01', 'YYYY-MM-DD')
-      let prevNewYearDay = dayjs(prevYear + '-01-01', 'YYYY-MM-DD').day()
-      if (prevNewYearDay == 0) {
-          firstDay = prevNewYear
-      } else if (prevNewYearDay <= 3) {
-          firstDay = prevNewYear.add(3 - prevNewYearDay, 'day')
-      } else {
-          firstDay = prevNewYear.add(7 - prevNewYearDay, 'day')
+    if (complete) {
+      if (lastStoredDate.substring(0,4) != nextDate.substring(0,4)) {
+        let prevYear = (parseInt(lastStoredDate.substring(0,4)) - 1).toString()
+        let prevNewYear = dayjs(prevYear + '-01-01', 'YYYY-MM-DD')
+        let prevNewYearDay = dayjs(prevYear + '-01-01', 'YYYY-MM-DD').day()
+        if (prevNewYearDay == 0) {
+            firstDay = prevNewYear
+        } else if (prevNewYearDay <= 3) {
+            firstDay = prevNewYear.add(3 - prevNewYearDay, 'day')
+        } else {
+            firstDay = prevNewYear.add(7 - prevNewYearDay, 'day')
+        }
+        nextDate = firstDay.format("YYYY-MM-DD")
       }
-      nextDate = firstDay.format("YYYY-MM-DD")
+    } else {
+      nextDate = lastStoredDate
+      mainWindow.webContents.send('show-msg', "Restarting this date")
     }
-    
-    console.log("lastDateObj: " + lastDateObj)
+
     console.log("seq: " + seq.toString())
     console.log("nextDate: " + nextDate)
-    return nextDate;
+    let nextDateObj = {
+      nextDate: nextDate,
+      complete: complete
+    }
+    let nextDateObjString = JSON.stringify(nextDateObj)
+    return nextDateObjString;
   })
 
   // Handle date selection in mainWindow process
@@ -2026,16 +2232,28 @@ async function mainline () {
         //  global variable seq, update the last stored date and database
         //  sequence number.
         if (  articleInfo.seq == seq &&
-              ( dateToSearch > lastStoredDate || 
-                dateToSearch.substr(0,4) < lastStoredDate.substr(0,4) ) ) {
+              (
+                ( 
+                  dateToSearch > lastStoredDate || 
+                  dateToSearch.substring(0,4) < lastStoredDate.substring(0,4) 
+                ) || 
+                !complete                
+              )
+            ) {              
+                  
           console.log(" writing lastDateFile")
-          let lastStoredDateObj = {
+          lastDateObj = {
             lastStoredDate: dateToSearch,
-            seq: seq
+            seq: seq,
+            complete: true,
+            lastArticle: 0
           }
-          let lastStoredDateObjString = JSON.stringify(lastStoredDateObj)
-          console.log(lastStoredDateObjString)
-          fs.writeFileSync(lastDateFile, lastStoredDateObjString, "utf8");
+          lastDateObjString = JSON.stringify(lastDateObj)
+          console.log(lastDateObjString)
+          fs.writeFileSync(lastDateFile, lastDateObjString, "utf8");
+
+          // Remove the date's folder from the user data folder
+          fs.rmSync( dateDir, { force: true, recursive: true } )
         }
 
     } catch(err) {

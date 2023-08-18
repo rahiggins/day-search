@@ -1611,3 +1611,14 @@ Seq: 2351 1998-01-18 Article: Mrs. Foo's Combination Plate
         2 tablespoons peeled, finely
         grated ginger
 
+Seq: 2368,   1998-02-04 Article: The Late, Great Fine Art of Butchering
+    First recipe: Recipe name not found
+
+    Article contains a numbered list that is not a recipe
+
+Seq: 2371,   1998-02-04 Article: The Minimalist; A Straightforward Technique Leading to Splendid Salmon
+
+    First recipe missed
+
+    Recipe contains instructions, but no ingredients or Yields/Makes/Serves
+

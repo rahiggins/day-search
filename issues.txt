@@ -111,3 +111,11 @@ On 'No more years', clear window.
 validate issues:
 
 <div class='loading'> should be replaced by a progress bar
+
+------------------------------------------------------------
+restructure-search issues:
+
+cooking.nytimes.com search results need to be added to the
+displayedArticleInfoArray
+
+articleObj created twice, in processSectionOrKeywords and in displayRecipeArticles
